@@ -26,7 +26,7 @@
     },
     {
       "src": "/api/(.*)",
-      "dest": "https://YOUR-RENDER-SERVICE.onrender.com/api/$1",
+      "dest": "https://shaggar-plan-and-kpi-management-system.onrender.com/api/$1",
       "headers": {
         "x-vercel-enable-rewrite-caching": "0"
       },
