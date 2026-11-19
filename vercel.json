@@ -1,0 +1,51 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "echo \"No dependencies\"",
+  "buildCommand": "node scripts/build-static.js",
+  "outputDirectory": "dist",
+  "routes": [
+    {
+      "src": "/(.*)",
+      "continue": true,
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "same-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'"
+      }
+    },
+    {
+      "src": "/(index\\.html)?",
+      "continue": true,
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "https://YOUR-RENDER-SERVICE.onrender.com/api/$1",
+      "headers": {
+        "x-vercel-enable-rewrite-caching": "0"
+      },
+      "transforms": [
+        {
+          "type": "request.headers",
+          "op": "set",
+          "target": {
+            "key": "x-origin-secret"
+          },
+          "args": "$ORIGIN_SECRET",
+          "env": [
+            "ORIGIN_SECRET"
+          ]
+        }
+      ]
+    },
+    {
+      "handle": "filesystem"
+    }
+  ]
+}

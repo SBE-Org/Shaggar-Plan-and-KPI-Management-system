@@ -5,6 +5,7 @@
 A web system for planning and tracking departmental performance. Departments set KPIs and targets. KPI officers report monthly results with evidence. Department heads verify the reports and the Mayor's Office approves them. Scorecards, alerts and corrective action plans follow automatically. A service desk handles citizen complaints, requests and appointments. Every important action is recorded in an audit trail.
 
 > The full functional description is in [`docs/SYSTEM_DOCUMENT.md`](docs/SYSTEM_DOCUMENT.md).
+> Hosting (Vercel + Render + Neon + Supabase): [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ---
 
@@ -57,7 +58,9 @@ A web system for planning and tracking departmental performance. Departments set
 | Layer | Choice | Why |
 |---|---|---|
 | Backend | **Node.js 22.5+**, no external packages | Nothing to install or patch; runs on any Windows or Linux server |
-| Database | **SQLite** via the built-in `node:sqlite` (portable SQL schema) | Zero-administration single file; the schema also runs on PostgreSQL |
+| Database | **PostgreSQL (Neon)** when `DATABASE_URL` is set, through a built-in client; otherwise **SQLite** via `node:sqlite` | Managed database in production; zero set-up on a PC |
+| Files | **Supabase Storage** when `SUPABASE_URL` is set; otherwise the server's disk | Evidence files and backups survive on hosts without a disk |
+| Hosting | Frontend on **Vercel**, backend on **Render** | See [`docs/DEPLOY.md`](docs/DEPLOY.md) |
 | Frontend | HTML, CSS and plain JavaScript, no build step | Easy for the City's ICT staff to maintain |
 | Shared logic | `shared/` modules loaded by both server and browser | One scoring engine, so dashboards and the server always agree |
 
@@ -69,7 +72,7 @@ A web system for planning and tracking departmental performance. Departments set
 shaggar-pms/
 ├── README.md                  ← this file
 ├── package.json               ← npm scripts (no dependencies)
-├── .env.example               ← configuration template
+├── vercel.json, render.yaml   ← hosting (frontend on Vercel, backend on Render)
 │
 ├── backend/                   ← API server
 │   ├── server.js              ← HTTP server: routing, sessions, errors, static files
@@ -134,7 +137,7 @@ shaggar-pms/
 cd shaggar-pms
 
 # 2. (optional) copy the configuration template
-cp .env.example .env          # Windows: copy .env.example .env
+cp backend/.env.example backend/.env   # optional on a PC: without DATABASE_URL and SUPABASE_URL it uses SQLite and local folders
 
 # 3. start the server — the database is created and filled with sample data on first run
 npm start
@@ -203,7 +206,7 @@ Roles marked **2-step** also need a 6-digit code. While the SMS gateway is not a
 
 ## Configuration
 
-Settings come from environment variables (or a `.env` file in the project root). Everything is optional.
+Settings come from environment variables, or from `backend/.env` (copy `backend/.env.example`, which explains every value). The frontend's settings are in `frontend/.env.example`. Everything is optional on a PC.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -290,9 +293,10 @@ SVG logos are checked on the server and rejected if they contain scripts.
 ## Database
 
 - **Schema:** `database/schema.sql`. About 30 tables, written in portable SQL (TEXT ids, ISO-8601 timestamps, JSON in TEXT columns).
-- **Engine:** SQLite in WAL mode by default, with a single file at `storage/shaggar-pms.db`.
+- **Engine:** PostgreSQL (Neon) when `DATABASE_URL` is set; otherwise SQLite in WAL mode, with a single file at `storage/shaggar-pms.db`. The same code and tests run on both.
 - **Access layer:** all queries go through `backend/db.js` (`all`, `get`, `run`, `insert`, `update`, `tx`).
-- **Moving to PostgreSQL:** run `schema.sql` on PostgreSQL. Replace the body of `db.js` with the `pg` driver (convert `?` placeholders to `$1…`, and use `pg_dump` in place of `VACUUM INTO` for backups). Routes and services do not change.
+- **PostgreSQL:** `backend/lib/pg.js` is a small built-in client (TLS, SCRAM-SHA-256); `db.js` converts `?` placeholders to `$1…`. To move an existing SQLite system: `scripts/move-to-neon.js` (see `docs/DEPLOY.md`).
+- **Backups:** compressed JSON copies of all tables, restorable on either engine.
 - **Seed data:** `database/seed.js` (run `npm run seed:reset`).
 - **Upgrades:** `backend/db.js` brings an existing database up to the current schema at start-up (new tables, new columns, new permissions). No data is deleted and no manual step is needed.
 

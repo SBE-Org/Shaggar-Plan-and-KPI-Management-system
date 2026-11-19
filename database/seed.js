@@ -13,7 +13,8 @@ const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'Shaggar@2026';
 function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 function seed({ reset = false } = {}) {
-  if (reset) { db.close(); for (const f of [config.dbFile, config.dbFile + '-wal', config.dbFile + '-shm']) if (fs.existsSync(f)) fs.unlinkSync(f); }
+  if (reset && config.databaseUrl) { db.open(); db.dropAll(); db.close(); console.log('Emptied the PostgreSQL database (DATABASE_URL).'); }
+  else if (reset) { db.close(); for (const f of [config.dbFile, config.dbFile + '-wal', config.dbFile + '-shm']) if (fs.existsSync(f)) fs.unlinkSync(f); }
   db.open();
   if (db.get('SELECT COUNT(*) AS n FROM users').n > 0) { console.log('Database already has data — nothing seeded. Use --reset to start over.'); return false; }
   const R = rng(20261113);
@@ -175,7 +176,7 @@ function seed({ reset = false } = {}) {
       .forEach(([role, task], i) => db.insert('qa_sessions', { id: 'Q' + (i + 1), role, task, status: 'Planned', findings: '' }));
     audit(T0, 'U01', 'System initialised', 'System', '-', `FY 2026/27 plan loaded: ${K.length} KPIs across ${depts.length} departments; annual targets set.`);
   });
-  console.log(`Seeded database at ${config.dbFile}\nDemo password for all accounts: ${DEMO_PASSWORD}`);
+  console.log(`Seeded the ${db.engine() === 'postgres' ? 'PostgreSQL database (DATABASE_URL)' : `SQLite database at ${config.dbFile}`}\nDemo password for all accounts: ${DEMO_PASSWORD}`);
   return true;
 }
 

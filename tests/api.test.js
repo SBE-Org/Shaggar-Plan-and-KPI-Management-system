@@ -7,6 +7,12 @@ const fs = require('node:fs');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'spms-'));
 Object.assign(process.env, { DB_FILE: path.join(tmp, 'test.db'), UPLOADS_DIR: path.join(tmp, 'uploads'), BACKUPS_DIR: path.join(tmp, 'backups'), PASSWORD_ITERATIONS: '2000', DEMO_MODE: 'true', SCHEDULER_MINUTES: '600', LOGIN_RATE_LIMIT: '500' });
+// TEST_DATABASE_URL runs the same tests on PostgreSQL. That database is emptied first.
+if (process.env.TEST_DATABASE_URL) {
+  const { PgSync } = require('../backend/lib/pgsync');
+  const c = new PgSync(process.env.TEST_DATABASE_URL); c.exec('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'); c.close();
+  process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+}
 const { server } = require('../backend/server');
 let base;
 const PW = 'Shaggar@2026';
@@ -334,4 +340,99 @@ test('citizens do not receive staff names', async () => {
     assert.equal(r.assignedTo, null);
     for (const h of r.history) { assert.ok(!/^Escalation/.test(h.text)); assert.ok(h.by === null || h.by === b.me); }
   }
+});
+
+test('backups: restore puts the data back, and an encrypted file restores on either engine', async () => {
+  const admin = await login('tolera.g');
+  const before = (await call('GET', '/api/public/branding')).json.branding.orgName;
+  const b = await call('POST', '/api/backups', {}, admin);
+  assert.equal(b.status, 200, JSON.stringify(b.json));
+  assert.equal((await call('PUT', '/api/settings/branding', { orgName: 'Changed After Backup' }, admin)).status, 200);
+  const r = await call('POST', `/api/backups/${b.json.id}/restore`, {}, admin);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal((await call('GET', '/api/public/branding')).json.branding.orgName, before);
+  assert.equal((await call('GET', '/api/bootstrap', null, admin)).status, 200, 'the administrator stays signed in');
+  // a safety copy was taken before the restore
+  assert.ok((await call('GET', '/api/bootstrap', null, admin)).json.backups.some(x => x.kind === 'pre-restore'));
+
+  // A backup in the v1.4 format (a whole SQLite database file), encrypted for download,
+  // restores on this server whatever its engine (SQLite or PostgreSQL).
+  const { DatabaseSync } = require('node:sqlite');
+  const backup = require('../backend/services/backup');
+  const sec = require('../backend/lib/security');
+  const data = backup.dump(); data.tables.settings = data.tables.settings.map(s => (s.key === 'branding' ? { ...s, value: JSON.stringify({ ...JSON.parse(s.value), orgName: 'From Old SQLite' }) } : s));
+  const file = path.join(tmp, 'old.db'); const src = new DatabaseSync(file);
+  src.exec(fs.readFileSync(path.join(__dirname, '..', 'database', 'schema.sql'), 'utf8'));
+  for (const [t, rows] of Object.entries(data.tables)) for (const row of rows) { const k = Object.keys(row); src.prepare(`INSERT INTO ${t} (${k.join(',')}) VALUES (${k.map(() => '?').join(',')})`).run(...k.map(c => row[c])); }
+  src.close();
+  const payload = { format: 'shaggar-pms-backup', ...sec.encrypt(fs.readFileSync(file), 'a long passphrase here') };
+  assert.equal((await call('POST', '/api/backups/import', { file: payload, passphrase: 'wrong passphrase!!' }, admin)).status, 422);
+  const imp = await call('POST', '/api/backups/import', { file: payload, passphrase: 'a long passphrase here' }, admin);
+  assert.equal(imp.status, 200, JSON.stringify(imp.json));
+  assert.equal((await call('GET', '/api/public/branding')).json.branding.orgName, 'From Old SQLite');
+  assert.equal((await call('GET', '/api/bootstrap', null, admin)).json.kpis.length, data.tables.kpis.filter(k => k.active).length);
+});
+
+test('evidence files go to Supabase Storage when it is configured', async () => {
+  const config = require('../backend/config'), storage = require('../backend/lib/storage');
+  const http = require('node:http'); const objects = new Map(), seen = [], buckets = new Set();
+  const mock = http.createServer((req, res) => {
+    seen.push({ method: req.method, url: req.url, apikey: req.headers.apikey, auth: req.headers.authorization });
+    const chunks = []; req.on('data', c => chunks.push(c)); req.on('end', () => {
+      const m = req.url.match(/^\/storage\/v1\/object\/([^/]+)(?:\/(.*))?$/); const key = m && m[2] ? decodeURIComponent(m[2]) : null;
+      if (req.headers.apikey !== 'sb_secret_test') { res.writeHead(401); return res.end('{"message":"bad key"}'); }
+      if (req.method === 'POST' && req.url === '/storage/v1/bucket') { const b = JSON.parse(Buffer.concat(chunks)); assert.equal(b.public, false, 'the bucket is private'); buckets.add(b.id); res.writeHead(200); return res.end('{}'); }
+      if (req.method === 'POST' && key) { if (!buckets.has(m[1])) { res.writeHead(400); return res.end('{"statusCode":"404","error":"Bucket not found","message":"Bucket not found"}'); } objects.set(key, Buffer.concat(chunks)); res.writeHead(200); return res.end('{"Key":"x"}'); }
+      if (req.method === 'GET' && key) { if (!objects.has(key)) { res.writeHead(400); return res.end('{"message":"Object not found"}'); } res.writeHead(200); return res.end(objects.get(key)); }
+      if (req.method === 'DELETE') { for (const k of JSON.parse(Buffer.concat(chunks)).prefixes) objects.delete(k); res.writeHead(200); return res.end('[]'); }
+      res.writeHead(404); res.end();
+    });
+  });
+  await new Promise(r => mock.listen(0, r));
+  const saved = { storage: config.storage, url: config.supabaseUrl, key: config.supabaseKey, bucket: config.supabaseBucket };
+  Object.assign(config, { storage: 'supabase', supabaseUrl: `http://127.0.0.1:${mock.address().port}`, supabaseKey: 'sb_secret_test', supabaseBucket: 'pms' }); storage.reset();
+  try {
+    const officer = await login('meron.a');
+    const boot = (await call('GET', '/api/bootstrap', null, officer)).json;
+    // a period with no report yet, or a draft/returned one the officer may still change
+    let k, m;
+    for (const x of boot.kpis.filter(y => y.active)) for (let mm = 0; mm < boot.config.currentMonth && !k; mm++) {
+      const s = boot.subs.find(y => y.kpiId === x.id && y.m === mm); const due = x.freq === 'monthly' || mm % 3 === 2;
+      if (due && (!s || ['draft', 'returned'].includes(s.status)) && (!s || !s.evidence.length)) { k = x; m = mm; }
+    }
+    assert.ok(k, 'found a period to report');
+    const content = '%PDF-1.4 evidence for supabase';
+    const sub = await call('POST', '/api/submissions', { kpiId: k.id, month: m, actual: k.targets[m], note: '', mode: 'draft', files: [{ name: 'proof file.pdf', type: 'application/pdf', data: Buffer.from(content).toString('base64') }] }, officer);
+    assert.equal(sub.status, 200, JSON.stringify(sub.json));
+    const key = [...objects.keys()][0];
+    assert.match(key, new RegExp(`^evidence/${sub.json.id}/E.+-proof_file\\.pdf$`));
+    assert.ok(buckets.has('pms'), 'the bucket was created on first use');
+    assert.ok(seen.every(x => x.apikey === 'sb_secret_test' && !x.auth), 'a new-style secret key goes in apikey only');
+    const ev = (await call('GET', '/api/bootstrap', null, officer)).json.subs.find(s => s.id === sub.json.id).evidence[0];
+    const dl = await fetch(`${base}/api/evidence/${ev.id}`, { headers: { Cookie: officer } });
+    assert.equal(dl.status, 200); assert.equal(await dl.text(), content); assert.match(dl.headers.get('cache-control'), /no-store/);
+    // removing the file from the draft deletes it from storage
+    assert.equal((await call('POST', '/api/submissions', { kpiId: k.id, month: m, actual: k.targets[m], note: '', mode: 'draft', keepEvidence: [], files: [] }, officer)).status, 200);
+    assert.equal(objects.size, 0);
+    // backups go to the bucket too
+    const admin = await login('tolera.g');
+    const b = await call('POST', '/api/backups', {}, admin); assert.equal(b.status, 200, JSON.stringify(b.json));
+    assert.ok(objects.has(`backups/${b.json.file_name}`));
+    assert.equal((await call('POST', `/api/backups/${b.json.id}/verify`, {}, admin)).json.ok, true);
+  } finally { Object.assign(config, { storage: saved.storage, supabaseUrl: saved.url, supabaseKey: saved.key, supabaseBucket: saved.bucket }); storage.reset(); mock.close(); }
+});
+
+test('with ORIGIN_SECRET set, the API answers only requests forwarded by the Vercel site', async () => {
+  const config = require('../backend/config'); config.originSecret = 'test-origin-secret-123';
+  try {
+    assert.equal((await call('GET', '/api/health')).status, 200, 'the health check stays open');
+    assert.equal((await call('GET', '/api/public/branding')).status, 403);
+    const fwd = { 'x-origin-secret': 'test-origin-secret-123', 'x-forwarded-host': 'pms.example.vercel.app', 'x-forwarded-for': '198.51.100.9' };
+    assert.equal((await call('GET', '/api/public/branding', null, null, { 'x-origin-secret': 'wrong-secret-12345678' })).status, 403);
+    assert.equal((await call('GET', '/api/public/branding', null, null, fwd)).status, 200);
+    // the browser's Origin is the Vercel address: accepted because the request carries the secret
+    const r = await call('POST', '/api/auth/login', { username: 'sena.o', password: PW }, null, { ...fwd, Origin: 'https://pms.example.vercel.app' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.equal((await call('POST', '/api/auth/login', { username: 'sena.o', password: PW }, null, { ...fwd, Origin: 'https://evil.example' })).status, 403);
+  } finally { config.originSecret = ''; }
 });

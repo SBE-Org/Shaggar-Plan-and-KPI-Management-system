@@ -1,7 +1,5 @@
 /* KPIs, objectives, targets, performance submissions (with evidence files),
    corrective action plans and employee evaluations. */
-const fs = require('node:fs');
-const path = require('node:path');
 const db = require('../db');
 const config = require('../config');
 const { route, fail, sendFile } = require('../lib/http');
@@ -9,6 +7,24 @@ const A = require('../lib/access');
 const audit = require('../lib/audit');
 const { notify, usersWith, usersByRole, webhook } = require('../lib/notify');
 const { sha256 } = require('../lib/security');
+const storage = require('../lib/storage');
+/* Evidence files are saved before the database records them, and removed files are
+   deleted after the change is committed, so a failure never leaves a record without its file. */
+const safeName = n => String(n).replace(/[^\w.\-]+/g, '_').slice(0, 120);
+async function saveFiles(files, folder, prefix) {
+  const saved = [];
+  try { for (const f of files) { const buf = Buffer.from(f.data || '', 'base64'), id = db.id(prefix), key = `evidence/${folder}/${id}-${safeName(f.name)}`; await storage.put(key, buf, f.type); saved.push({ id, key, buf, f }); } }
+  catch (e) { await storage.remove(saved.map(x => x.key)).catch(() => {}); fail(502, e.message); }
+  return saved;
+}
+const dropFiles = rows => storage.remove(rows.filter(r => r.storage_path).map(r => storage.evidenceKey(r.storage_path))).catch(e => console.error('[storage]', e.message));
+async function sendEvidence(ctx, row) {
+  if (!row.storage_path) fail(404, 'Only the file details were recorded for this sample item; the file itself is not stored.');
+  const buf = await storage.get(storage.evidenceKey(row.storage_path)).catch(e => fail(502, e.message));
+  if (!buf) fail(404, 'The file is missing from storage.');
+  audit.log(ctx, 'Evidence downloaded', 'Evidence', row.id, row.file_name);
+  sendFile(ctx.res, 200, buf, row.mime || 'application/octet-stream', { 'Content-Disposition': `attachment; filename="${row.file_name.replace(/"/g, '')}"`, 'Cache-Control': 'private, no-store' });
+}
 const state = require('../services/state');
 const C = require('../../shared/constants');
 
@@ -210,7 +226,7 @@ route('POST', '/api/target-proposals/:id/withdraw', ctx => {
 const subHist = (sid, userId, action, comment = '') => db.insert('submission_history', { id: db.id('H'), submission_id: sid, user_id: userId, action, comment, at: db.now() });
 function achievement(k, actual, target) { if (actual == null || target == null) return null; if (k.direction === 'higher') return target ? actual / target * 100 : null; return actual ? target / actual * 100 : 120; }
 
-route('POST', '/api/submissions', ctx => {
+route('POST', '/api/submissions', async ctx => {
   A.requirePerm(ctx.user, 'submit');
   const b = ctx.body, k = kpiRow(b.kpiId); A.requireScope(ctx.user, k.dept_id);
   if (!k.active) fail(409, k.approval === 'approved' ? 'This KPI is inactive.' : 'This KPI is not approved yet, so results cannot be reported against it.');
@@ -232,14 +248,12 @@ route('POST', '/api/submissions', ctx => {
   const before = s ? { actual: s.actual, status: s.status, evidence: existing.length, note: s.note } : null;
   const wasReturned = s && s.status === 'returned';
   const t = db.now();
-  db.tx(() => {
-    if (!s) { s = { id: db.id('S'), kpi_id: k.id, month: m, actual, note, status: 'draft', submitted_by: ctx.user.id, submitted_at: null, verified_by: null, verified_at: null, approved_by: null, approved_at: null, esc_verify: 0, esc_approve: 0 }; db.insert('submissions', s); }
-    for (const e of existing) if (!keep.has(e.id)) { if (e.storage_path) { const p = path.join(config.uploadsDir, e.storage_path); if (fs.existsSync(p)) fs.unlinkSync(p); } db.run('DELETE FROM submission_evidence WHERE id = ?', e.id); }
-    for (const f of files) {
-      const buf = Buffer.from(f.data || '', 'base64'); const eid = db.id('E'); const rel = path.join(s.id, `${eid}-${String(f.name).replace(/[^\w.\-]+/g, '_').slice(0, 120)}`);
-      fs.mkdirSync(path.join(config.uploadsDir, s.id), { recursive: true }); fs.writeFileSync(path.join(config.uploadsDir, rel), buf);
-      db.insert('submission_evidence', { id: eid, submission_id: s.id, file_name: String(f.name).slice(0, 200), size: buf.length, mime: f.type || null, storage_path: rel, sha256: sha256(buf), uploaded_by: ctx.user.id, uploaded_at: t });
-    }
+  const sid = s ? s.id : db.id('S'), removed = existing.filter(e => !keep.has(e.id));
+  const saved = await saveFiles(files, sid, 'E');
+  try { db.tx(() => {
+    if (!s) { s = { id: sid, kpi_id: k.id, month: m, actual, note, status: 'draft', submitted_by: ctx.user.id, submitted_at: null, verified_by: null, verified_at: null, approved_by: null, approved_at: null, esc_verify: 0, esc_approve: 0 }; db.insert('submissions', s); }
+    for (const e of removed) db.run('DELETE FROM submission_evidence WHERE id = ?', e.id);
+    for (const { id: eid, key, buf, f } of saved) db.insert('submission_evidence', { id: eid, submission_id: s.id, file_name: String(f.name).slice(0, 200), size: buf.length, mime: f.type || null, storage_path: key, sha256: sha256(buf), uploaded_by: ctx.user.id, uploaded_at: t });
     if (mode === 'submit') {
       let status = 'submitted', changes = { actual, note, status, submitted_by: ctx.user.id, submitted_at: t, verified_by: null, verified_at: null, approved_by: null, approved_at: null, esc_verify: 0, esc_approve: 0 };
       subHist(s.id, ctx.user.id, wasReturned ? 'resubmitted' : 'submitted');
@@ -249,7 +263,8 @@ route('POST', '/api/submissions', ctx => {
       if (changes.status === 'submitted') notify([head], `${k.code} ${C.MONTHS[m]} report submitted by ${ctx.user.name} — awaiting your verification.`, 'submission_submitted', ctx.user.id, `sub:${s.id}`);
       else if (changes.status === 'verified') notify(usersWith('approve'), `${k.code} ${C.MONTHS[m]} submitted — awaiting Mayor's Office approval.`, 'submission_verified', ctx.user.id, `sub:${s.id}`);
     } else { db.update('submissions', { id: s.id }, { actual, note, status: wasReturned ? 'returned' : 'draft' }); subHist(s.id, ctx.user.id, 'saved draft'); }
-  });
+  }); } catch (e) { await dropFiles(saved.map(x => ({ storage_path: x.key }))); throw e; }
+  await dropFiles(removed);
   const after = db.get('SELECT * FROM submissions WHERE id = ?', s.id);
   audit.log(ctx, mode === 'submit' ? (wasReturned ? 'Submission resubmitted' : 'Submission submitted') : 'Submission draft saved', 'Submission', s.id, `${k.code} · ${C.MONTHS[m]} · actual ${C.fmt(actual, k.unit)} (${C.pct(ach)})`, before, { actual, status: after.status, evidence: evidenceCount, note });
   return { id: s.id, status: after.status };
@@ -324,13 +339,10 @@ route('POST', '/api/submissions/bulk-approve', ctx => {
   db.tx(() => { for (const s of db.all("SELECT * FROM submissions WHERE status = 'verified'")) { if (W.sod && (s.verified_by === ctx.user.id || s.submitted_by === ctx.user.id)) continue; if (!A.scopeIds(ctx.user).includes(kpiRow(s.kpi_id).dept_id)) continue; act(ctx, s, 'approve', 'Bulk approval', true); n++; } });
   return { approved: n };
 });
-route('GET', '/api/evidence/:id', ctx => {
+route('GET', '/api/evidence/:id', async ctx => {
   const e = db.get('SELECT e.*, k.dept_id FROM submission_evidence e JOIN submissions s ON s.id = e.submission_id JOIN kpis k ON k.id = s.kpi_id WHERE e.id = ?', ctx.params.id) || fail(404, 'File not found.');
   A.requireScope(ctx.user, e.dept_id);
-  if (!e.storage_path) fail(404, 'Only the file details were recorded for this sample item; the file itself is not stored.');
-  const p = path.join(config.uploadsDir, e.storage_path); if (!fs.existsSync(p)) fail(404, 'The file is missing from storage.');
-  audit.log(ctx, 'Evidence downloaded', 'Evidence', e.id, e.file_name);
-  sendFile(ctx.res, 200, fs.readFileSync(p), e.mime || 'application/octet-stream', { 'Content-Disposition': `attachment; filename="${e.file_name.replace(/"/g, '')}"` });
+  await sendEvidence(ctx, e);
 });
 
 /* ---------- Corrective action plans ---------- */
@@ -446,10 +458,12 @@ route('PUT', '/api/employee-indicators/:id', ctx => {
   if (own) notify([deptOf(e.dept_id).head_user_id], `${e.name} resubmitted the individual target "${f.name}" — awaiting your approval.`, 'target_proposed', ctx.user.id, `emp:${e.id}`);
   return { ok: true };
 });
-route('DELETE', '/api/employee-indicators/:id', ctx => {
+route('DELETE', '/api/employee-indicators/:id', async ctx => {
   const i = indRow(ctx.params.id), e = empRow(i.employee_id), own = e.user_id === ctx.user.id;
   if (own) { if (i.status === 'approved') fail(409, 'An approved target can only be removed by your department head.'); } else requireSupervisor(ctx.user, e);
-  db.tx(() => { for (const ev of db.all('SELECT * FROM employee_evidence WHERE indicator_id = ?', i.id)) { if (ev.storage_path) { const p = path.join(config.uploadsDir, ev.storage_path); if (fs.existsSync(p)) fs.unlinkSync(p); } } db.run('DELETE FROM employee_evidence WHERE indicator_id = ?', i.id); db.run('DELETE FROM employee_indicators WHERE id = ?', i.id); });
+  const files = db.all('SELECT * FROM employee_evidence WHERE indicator_id = ?', i.id);
+  db.tx(() => { db.run('DELETE FROM employee_evidence WHERE indicator_id = ?', i.id); db.run('DELETE FROM employee_indicators WHERE id = ?', i.id); });
+  await dropFiles(files);
   audit.log(ctx, 'Employee indicator removed', 'Employee', e.name, i.name, { name: i.name, target: i.target }, null);
   return { ok: true };
 });
@@ -465,7 +479,7 @@ route('POST', '/api/employee-indicators/:id/decision', ctx => {
   if (e.user_id) notify([e.user_id], `Your proposed target "${i.name}" was ${st} by ${ctx.user.name}${comment ? ': ' + comment : '.'}`, 'target_decided', ctx.user.id, `emp:${e.id}`);
   return { status: st };
 });
-route('POST', '/api/employee-indicators/:id/report', ctx => {
+route('POST', '/api/employee-indicators/:id/report', async ctx => {
   const i = indRow(ctx.params.id), e = empRow(i.employee_id);
   if (e.user_id !== ctx.user.id) fail(403, 'Only the employee can report their own result. A supervisor records it from the evaluation form.');
   if (i.status !== 'approved') fail(409, 'This target is not approved yet, so results cannot be reported against it.');
@@ -475,16 +489,14 @@ route('POST', '/api/employee-indicators/:id/report', ctx => {
   for (const f of files) { if (!ALLOWED.test(f.name || '')) fail(422, `${f.name}: this file type is not accepted.`); if (Buffer.byteLength(f.data || '', 'base64') > MAX_FILE) fail(413, `${f.name} is larger than 10 MB.`); }
   const existing = db.all('SELECT * FROM employee_evidence WHERE indicator_id = ?', i.id);
   if (!(existing.filter(x => keep.has(x.id)).length + files.length)) fail(422, 'Attach at least one file as evidence of the result.');
-  const t = db.now();
-  db.tx(() => {
-    for (const x of existing) if (!keep.has(x.id)) { if (x.storage_path) { const p = path.join(config.uploadsDir, x.storage_path); if (fs.existsSync(p)) fs.unlinkSync(p); } db.run('DELETE FROM employee_evidence WHERE id = ?', x.id); }
-    for (const f of files) {
-      const buf = Buffer.from(f.data || '', 'base64'), eid = db.id('EE'), rel = path.join('employees', i.id, `${eid}-${String(f.name).replace(/[^\w.\-]+/g, '_').slice(0, 120)}`);
-      fs.mkdirSync(path.join(config.uploadsDir, 'employees', i.id), { recursive: true }); fs.writeFileSync(path.join(config.uploadsDir, rel), buf);
-      db.insert('employee_evidence', { id: eid, indicator_id: i.id, file_name: String(f.name).slice(0, 200), size: buf.length, mime: f.type || null, storage_path: rel, sha256: sha256(buf), uploaded_by: ctx.user.id, uploaded_at: t });
-    }
+  const t = db.now(), removed = existing.filter(x => !keep.has(x.id));
+  const saved = await saveFiles(files, `employees/${i.id}`, 'EE');
+  try { db.tx(() => {
+    for (const x of removed) db.run('DELETE FROM employee_evidence WHERE id = ?', x.id);
+    for (const { id: eid, key, buf, f } of saved) db.insert('employee_evidence', { id: eid, indicator_id: i.id, file_name: String(f.name).slice(0, 200), size: buf.length, mime: f.type || null, storage_path: key, sha256: sha256(buf), uploaded_by: ctx.user.id, uploaded_at: t });
     db.update('employee_indicators', { id: i.id }, { reported_actual: actual, report_note: note, report_status: 'reported', reported_at: t, verified_by: null, verified_at: null, verify_comment: null });
-  });
+  }); } catch (e) { await dropFiles(saved.map(x => ({ storage_path: x.key }))); throw e; }
+  await dropFiles(removed);
   audit.log(ctx, 'Employee result reported', 'Employee', e.name, `${i.name}: ${C.fmt(actual, i.unit)} against ${C.fmt(i.target, i.unit)}`, { actual: i.actual, status: i.report_status }, { reported: actual, status: 'reported' });
   notify([deptOf(e.dept_id).head_user_id], `${e.name} reported a result for "${i.name}" — awaiting your verification.`, 'employee_report', ctx.user.id, `emp:${e.id}`);
   return { status: 'reported' };
@@ -501,13 +513,12 @@ route('POST', '/api/employee-indicators/:id/verify', ctx => {
   if (e.user_id) notify([e.user_id], `Your result for "${i.name}" was ${st} by ${ctx.user.name}${comment ? ': ' + comment : '.'}`, 'employee_report', ctx.user.id, `emp:${e.id}`);
   return { status: st };
 });
-route('GET', '/api/employee-evidence/:id', ctx => {
+route('GET', '/api/employee-evidence/:id', async ctx => {
   if (!ctx.user) fail(401, 'Sign in to continue.');
   const ev = db.get('SELECT ev.*, e.dept_id, e.user_id AS emp_user FROM employee_evidence ev JOIN employee_indicators i ON i.id = ev.indicator_id JOIN employees e ON e.id = i.employee_id WHERE ev.id = ?', ctx.params.id) || fail(404, 'File not found.');
   if (ev.emp_user !== ctx.user.id) { A.requirePerm(ctx.user, 'emp_eval', 'all_depts'); A.requireScope(ctx.user, ev.dept_id); }
-  const p = path.join(config.uploadsDir, ev.storage_path || ''); if (!ev.storage_path || !fs.existsSync(p)) fail(404, 'The file is missing from storage.');
-  audit.log(ctx, 'Evidence downloaded', 'Evidence', ev.id, ev.file_name);
-  sendFile(ctx.res, 200, fs.readFileSync(p), ev.mime || 'application/octet-stream', { 'Content-Disposition': `attachment; filename="${ev.file_name.replace(/"/g, '')}"` });
+  if (!ev.storage_path) fail(404, 'The file is missing from storage.');
+  await sendEvidence(ctx, ev);
 });
 /* Supervisor form: record results on behalf of an employee without an account
    (saved as verified by the supervisor) and give the period rating. */

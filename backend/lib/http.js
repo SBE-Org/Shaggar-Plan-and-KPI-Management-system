@@ -47,8 +47,10 @@ const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'",
 };
 function headers(extra = {}) { const h = { ...SECURITY_HEADERS, ...extra }; if (config.secureCookies) h['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'; return h; }
-function sendJson(res, status, data, extra = {}) { res.writeHead(status, headers({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...extra })); res.end(JSON.stringify(data)); }
-function sendFile(res, status, body, type, extra = {}) { res.writeHead(status, headers({ 'Content-Type': type, ...extra })); res.end(body); }
+// API answers are per user: never let a CDN (Vercel) or browser cache them.
+const NO_STORE = { 'Cache-Control': 'private, no-store', 'CDN-Cache-Control': 'no-store', 'Vercel-CDN-Cache-Control': 'no-store' };
+function sendJson(res, status, data, extra = {}) { res.writeHead(status, headers({ 'Content-Type': 'application/json; charset=utf-8', ...NO_STORE, ...extra })); res.end(JSON.stringify(data)); }
+function sendFile(res, status, body, type, extra = {}) { res.writeHead(status, headers({ 'Content-Type': type, ...(extra['Content-Disposition'] ? NO_STORE : {}), ...extra })); res.end(body); }
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 /** Serve /shared/* from shared/, everything else from frontend/ (SPA fallback to index.html). */
@@ -57,6 +59,7 @@ function serveStatic(req, res, pathname) {
   if (pathname.startsWith('/shared/')) { base = config.sharedDir; rel = pathname.slice('/shared'.length); }
   let file = path.normalize(path.join(base, rel));
   if (!file.startsWith(base)) return sendFile(res, 403, 'Forbidden', 'text/plain');
+  if (/(^|[\\/])\./.test(path.relative(base, file))) return sendFile(res, 404, 'Not found', 'text/plain'); // never serve .env and other hidden files
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(config.frontendDir, 'index.html');
   const ext = path.extname(file);
   sendFile(res, 200, fs.readFileSync(file), TYPES[ext] || 'application/octet-stream', { 'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=300' });

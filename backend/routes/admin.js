@@ -176,17 +176,18 @@ route('PUT', '/api/desk-config', ctx => {
 });
 
 /* ---------- backups & archive ---------- */
-route('POST', '/api/backups', ctx => { adminOnly(ctx); return backup.create(ctx, 'manual'); });
-route('POST', '/api/backups/:id/verify', ctx => { adminOnly(ctx); const ok = backup.verify(ctx.params.id); audit.log(ctx, 'Backup integrity checked', 'Backup', ctx.params.id, ok ? 'Checksum matches' : 'CHECKSUM MISMATCH'); return { ok }; });
-route('POST', '/api/backups/:id/restore', ctx => { adminOnly(ctx); try { backup.restore(ctx, ctx.params.id); } catch (e) { fail(422, e.message); } return { ok: true }; });
-route('DELETE', '/api/backups/:id', ctx => { adminOnly(ctx); backup.remove(ctx.params.id); audit.log(ctx, 'Backup deleted', 'Backup', ctx.params.id); return { ok: true }; });
-route('POST', '/api/backups/:id/download', ctx => {
+route('POST', '/api/backups', async ctx => { adminOnly(ctx); try { return await backup.create(ctx, 'manual'); } catch (e) { fail(502, e.message); } });
+route('POST', '/api/backups/:id/verify', async ctx => { adminOnly(ctx); const ok = await backup.verify(ctx.params.id).catch(() => false); audit.log(ctx, 'Backup integrity checked', 'Backup', ctx.params.id, ok ? 'Checksum matches' : 'CHECKSUM MISMATCH'); return { ok }; });
+route('POST', '/api/backups/:id/restore', async ctx => { adminOnly(ctx); try { await backup.restore(ctx, ctx.params.id); } catch (e) { fail(422, e.message); } return { ok: true }; });
+route('DELETE', '/api/backups/:id', async ctx => { adminOnly(ctx); await backup.remove(ctx.params.id); audit.log(ctx, 'Backup deleted', 'Backup', ctx.params.id); return { ok: true }; });
+route('POST', '/api/backups/:id/download', async ctx => {
   adminOnly(ctx); const pass = String(ctx.body.passphrase || ''); if (pass.length < 12) fail(422, 'Use a passphrase of at least 12 characters.');
-  const { name, payload } = backup.exportEncrypted(ctx.params.id, pass);
+  let out; try { out = await backup.exportEncrypted(ctx.params.id, pass); } catch (e) { fail(404, e.message); }
+  const { name, payload } = out;
   audit.log(ctx, 'Encrypted backup downloaded', 'Backup', ctx.params.id, 'AES-256-GCM');
   sendFile(ctx.res, 200, JSON.stringify(payload), 'application/json', { 'Content-Disposition': `attachment; filename="${name}"` });
 });
-route('POST', '/api/backups/import', ctx => { adminOnly(ctx); try { backup.importEncrypted(ctx, ctx.body.file, String(ctx.body.passphrase || '')); } catch (e) { audit.log(ctx, 'Backup import failed', 'Backup', 'file', e.message); fail(422, e.message); } return { ok: true }; });
+route('POST', '/api/backups/import', async ctx => { adminOnly(ctx); try { await backup.importEncrypted(ctx, ctx.body.file, String(ctx.body.passphrase || '')); } catch (e) { audit.log(ctx, 'Backup import failed', 'Backup', 'file', e.message); fail(422, e.message); } return { ok: true }; });
 route('POST', '/api/archive/run', ctx => { adminOnly(ctx); return automation.runArchival(ctx); });
 route('POST', '/api/archive/restore', ctx => {
   adminOnly(ctx); const { kind, id } = ctx.body;

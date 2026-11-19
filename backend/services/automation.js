@@ -61,7 +61,7 @@ function runArchival(ctx = null) {
 function daily() {
   const today = new Date().toISOString().slice(0, 10);
   if (db.getSetting('lastArchival') !== today) runArchival();
-  if (!db.get("SELECT id FROM backups WHERE kind = 'daily' AND substr(created_at,1,10) = ?", today)) backup.create(null, 'daily');
+  if (!db.get("SELECT id FROM backups WHERE kind = 'daily' AND substr(created_at,1,10) = ?", today)) backup.create(null, 'daily').catch(e => console.error('[backup] daily backup failed:', e.message));
 }
 
 function start() {

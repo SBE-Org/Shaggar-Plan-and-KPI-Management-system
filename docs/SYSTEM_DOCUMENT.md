@@ -3,7 +3,7 @@
 ## Shaggar PMS — KPI & Performance Management System
 
 **Owner:** Shaggar City Administration, Office of the Mayor
-**Version:** 1.5 (see `CHANGES.md` for what changed since 1.0)
+**Version:** 1.6 (see `CHANGES.md` for what changed since 1.0)
 **Fiscal year in sample data:** 2026/27 (2019 EFY)
 **Status:** Ready for pilot. Translations and figures marked as draft or illustrative need approval before go-live.
 

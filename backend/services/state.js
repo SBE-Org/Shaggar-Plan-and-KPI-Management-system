@@ -15,7 +15,7 @@ function config() {
     emailProvider: env.brevoApiKey ? 'Brevo' : env.resendApiKey ? 'Resend' : env.emailApiUrl ? 'custom gateway' : null, emailFrom: env.emailFrom || null, demoMode: env.demoMode,
     desk: {
       priorities: db.all('SELECT id, name, hours FROM request_priorities ORDER BY position'),
-      categories: db.all('SELECT id, name, type, dept_id AS deptId, priority_id AS priority FROM request_categories WHERE active = 1 ORDER BY id'),
+      categories: db.all('SELECT id, name, type, dept_id AS "deptId", priority_id AS priority FROM request_categories WHERE active = 1 ORDER BY id'),
     },
   };
 }

@@ -1,0 +1,45 @@
+# Render Blueprint for the BACKEND (API). The data lives in Neon, the files in Supabase,
+# so no disk is needed. Render → New → Blueprint → choose this repository.
+# Fill in the values marked "sync: false" (see backend/.env.example for what each one is).
+services:
+  - type: web
+    name: shaggar-pms-api
+    runtime: node
+    # starter keeps the server awake, so reminders, escalations and the daily backup run on time.
+    # free works for trying the system, but sleeps after 15 minutes without visitors
+    # (the first visit then waits about a minute, and scheduled jobs pause while it sleeps).
+    plan: starter
+    region: frankfurt          # put Neon and Supabase in Frankfurt (eu-central-1) too
+    buildCommand: echo "No build step - the backend has no dependencies"
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL          # Neon connection string
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: shaggar-pms
+      - key: ORIGIN_SECRET         # same value as in Vercel
+        sync: false
+      - key: SECURE_COOKIES
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: DEMO_MODE             # set to false after email works (System Guide, section 9)
+        value: "true"
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: SCHEDULER_MINUTES
+        value: "30"
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false

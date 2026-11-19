@@ -1,3 +1,25 @@
+# Changes in version 1.6
+
+- **Database on Neon (PostgreSQL)** when `DATABASE_URL` is set. The backend has its own small
+  PostgreSQL client (TLS, SCRAM-SHA-256 with channel binding), so it still needs no packages.
+  Without `DATABASE_URL` it keeps using SQLite, so a PC needs no set-up.
+- **Files on Supabase Storage** (private bucket, created on first use) when `SUPABASE_URL` is
+  set: evidence files and backups. Without it, files stay on the server's disk.
+- **Backups** are now compressed JSON copies of all records, restorable on either database.
+  Older SQLite backups and encrypted backup files from v1.4 still restore, also into Neon.
+- **Frontend on Vercel, backend on Render.** `scripts/configure-vercel.js` writes `vercel.json`
+  from `frontend/.env`; Vercel forwards `/api/*` to Render and adds a shared secret
+  (`ORIGIN_SECRET`), so the backend answers only requests that come through the site. API
+  answers are marked so that Vercel never caches them.
+- `backend/.env.example` and `frontend/.env.example` list every setting, ready to copy.
+- `scripts/move-to-neon.js` copies an existing SQLite system (records and evidence files) to
+  Neon and Supabase.
+- `TRUST_PROXY` uses the visitor's address behind a hosting proxy, so sign-in limits are per
+  visitor. Hidden files such as `.env` are never served or published.
+- Step-by-step guide: `docs/DEPLOY.md`. All tests run on SQLite and on PostgreSQL.
+
+An existing database is upgraded automatically at start-up (new `format` column on backups).
+
 # Changes in version 1.5
 
 ## Notifications open what they are about
