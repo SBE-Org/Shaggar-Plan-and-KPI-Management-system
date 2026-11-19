@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KPI & Performance Management</title>
+<link rel="icon" href="assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Noto+Sans+Ethiopic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app"><div style="display:grid;place-items:center;height:100vh;color:#8597b3;font-family:system-ui;background:#0a1526">Loading…</div></div>
+<div id="modal" onclick="if(event.target===this)closeModal()"></div>
+<div id="palette" onclick="if(event.target===this)closePalette()"></div>
+<div id="tip" role="tooltip"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<!-- shared with the backend -->
+<script src="/shared/constants.js"></script>
+<script src="/shared/performance.js"></script>
+<!-- application -->
+<script src="js/core.js"></script>
+<script src="js/shell.js"></script>
+<script src="js/performance.js"></script>
+<script src="js/services.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/assistant.js"></script>
+<script src="js/chat.js"></script>
+<script>boot()</script>
+</body>
+</html>
