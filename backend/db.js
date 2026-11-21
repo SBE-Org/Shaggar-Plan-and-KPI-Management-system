@@ -58,7 +58,7 @@ function open(file = config.dbFile) {
 /* Brings an existing database up to the current schema. schema.sql only creates
    missing tables, so columns added to existing tables are added here. Safe to
    run on every start. */
-const CURRENT_VERSION = 3;
+const CURRENT_VERSION = 5;
 function addColumn(table, column, definition) {
   if (isPg()) { eng.exec(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${column} ${pgSchema(definition)}`); return; }
   const cols = eng.all(`PRAGMA table_info(${table})`, []).map(c => c.name);
@@ -94,7 +94,29 @@ function migrate() {
     // version 3: internal messaging for every role except citizens
     for (const role of ['super_admin', 'mayor', 'mayor_admin', 'dept_head', 'staff', 'kpi_officer', 'auditor']) grant(role, 'chat');
   }
+  if (have >= 1 && have < 5) {
+    pruneRemoved();
+    // children first, so no reference is left pointing at a dropped table
+    for (const t of ['request_history', 'requests', 'request_categories', 'request_priorities']) eng.exec(`DROP TABLE IF EXISTS ${t}${isPg() ? ' CASCADE' : ''}`);
+  }
   run('INSERT OR IGNORE INTO schema_version (version, applied_at) VALUES (?, ?)', CURRENT_VERSION, now());
+}
+/* Removes what earlier versions had and this one no longer does (citizen accounts in v1.7,
+   the service desk in v1.8). Run when an older database is upgraded and after an older
+   backup is restored. Safe to run any number of times. */
+function pruneRemoved() {
+  tx(() => {
+    for (const r of all("SELECT id FROM users WHERE role = 'citizen'")) { run('DELETE FROM sessions WHERE user_id = ?', r.id); run('UPDATE users SET active = 0 WHERE id = ?', r.id); }
+    run("DELETE FROM role_permissions WHERE role = 'citizen' OR permission IN ('desk_intake', 'desk_handle', 'citizen')");
+    run("DELETE FROM notifications WHERE event IN ('request_new', 'request_assigned', 'request_status') OR link LIKE 'req:%'");
+    run("DELETE FROM settings WHERE key = 'escalation'");
+    const ret = getSetting('retention'); if (ret && 'requestDays' in ret) { const { requestDays, ...rest } = ret; setSetting('retention', rest); }
+    const sec = getSetting('security');
+    if (sec) { const { maskPII, ...rest } = sec; const mfa = Array.isArray(rest.mfaRoles) ? rest.mfaRoles.filter(r => r !== 'citizen') : rest.mfaRoles; if ('maskPII' in sec || (mfa && mfa.length !== (rest.mfaRoles || []).length)) setSetting('security', { ...rest, mfaRoles: mfa }); }
+    const nt = getSetting('notify'); if (nt && nt.events && Object.keys(nt.events).some(k => k.startsWith('request_'))) setSetting('notify', { ...nt, events: Object.fromEntries(Object.entries(nt.events).filter(([k]) => !k.startsWith('request_'))) });
+    for (const w of all('SELECT id, events FROM webhooks')) { const ev = String(w.events || '').split(',').filter(x => x && !x.startsWith('request_')).join(','); if (ev !== w.events) run('UPDATE webhooks SET events = ? WHERE id = ?', ev, w.id); }
+    for (const k of all('SELECT id, scopes FROM api_keys')) { const sc = String(k.scopes || '').split(',').filter(x => x && !x.startsWith('desk:')).join(','); if (sc !== k.scopes) run('UPDATE api_keys SET scopes = ? WHERE id = ?', sc, k.id); }
+  });
 }
 function close() { if (eng) { eng.close(); eng = null; } }
 const handle = () => eng && eng.raw;
@@ -140,4 +162,4 @@ let seq = 0;
 function id(prefix = '') { seq = (seq + 1) % 1e6; return prefix + Date.now().toString(36) + seq.toString(36) + Math.random().toString(36).slice(2, 6); }
 
 
-module.exports = { open, close, dropAll, handle, engine, all, get, run, insert, update, tx, tables, getSetting, setSetting, now, id };
+module.exports = { open, close, dropAll, pruneRemoved, handle, engine, all, get, run, insert, update, tx, tables, getSetting, setSetting, now, id };

@@ -89,6 +89,7 @@ async function restoreData(ctx, data, label) {
     for (const t of order) if (data.tables[t] && data.tables[t].length) insertMany(t, data.tables[t]);
     if (mine.length && db.get('SELECT id FROM users WHERE id = ?', ctx.user.id)) insertMany('sessions', mine);
   });
+  db.pruneRemoved(); // a backup from an older version may hold features this version no longer has
   require('../lib/access').resetPermCache();
   audit.log(ctx, 'Backup restored', 'Backup', label, `Data restored from ${label}`);
 }

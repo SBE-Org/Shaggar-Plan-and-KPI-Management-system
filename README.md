@@ -2,7 +2,7 @@
 
 **Shaggar City Administration · Office of the Mayor**
 
-A web system for planning and tracking departmental performance. Departments set KPIs and targets. KPI officers report monthly results with evidence. Department heads verify the reports and the Mayor's Office approves them. Scorecards, alerts and corrective action plans follow automatically. A service desk handles citizen complaints, requests and appointments. Every important action is recorded in an audit trail.
+A web system for planning and tracking departmental performance. Departments set KPIs and targets. KPI officers report monthly results with evidence. Department heads verify the reports and the Mayor's Office approves them. Scorecards, alerts and corrective action plans follow automatically. It is for the administration's own staff only. Every important action is recorded in an audit trail.
 
 > The full functional description is in [`docs/SYSTEM_DOCUMENT.md`](docs/SYSTEM_DOCUMENT.md).
 > Hosting (Vercel + Render + Neon + Supabase): [`docs/DEPLOY.md`](docs/DEPLOY.md).
@@ -37,15 +37,13 @@ A web system for planning and tracking departmental performance. Departments set
 | **Scorecards** | Weighted department scores, ratings, trends, previous-period and last-year comparisons, executive dashboard |
 | **Alerts & corrective actions** | Automatic alerts for underperformance, declining trends, overdue or returned reports; corrective action plans with owners and due dates |
 | **Employee performance** | Employees propose individual targets and report results with evidence; the department head approves, verifies and evaluates |
-| **Service desk** | Complaints, service requests and appointments with categories, priorities, deadlines and three-level escalation |
-| **Citizen portal** | Citizens register requests and track them by reference number |
 | **Messages** | Built-in one-to-one chat between staff accounts: departments, the Mayor, the Mayor's Office and administrators; private to the two participants |
 | **Notifications** | Always in-system; SMS and email through an outbox once the gateways are approved |
 | **Users & access** | 8 roles, an editable permission matrix and department scoping; a department and its head's account are created in one form |
 | **Security** | Salted PBKDF2 password hashes, one-time codes for privileged roles, lockout, idle timeout, masking of personal data |
 | **Audit trail** | Sign-ins, records created, changes, approvals, assignments, status changes and exports, with before and after values |
 | **Data management** | Search, filters, pagination and CSV export; daily backups with checksums; encrypted backup download and restore; retention and archival |
-| **Configuration** | Workflow steps, categories, priorities, deadlines, escalation rules, thresholds, organisation name and logo |
+| **Configuration** | Workflow steps, escalation days for reports, thresholds, organisation name and logo |
 | **Languages** | English, Afaan Oromoo and Amharic (draft translations of menus, titles and statuses; pending approval) |
 | **Integrations** | Documented REST API (OpenAPI 3) with scoped API keys and signed webhooks |
 | **AI assistant** | Answers questions from live data inside the user's access scope (Claude API, local Ollama model, or built-in rules) |
@@ -87,7 +85,7 @@ shaggar-pms/
 │   ├── routes/                ← REST endpoints, grouped by module
 │   │   ├── auth.js            ← sign-in, one-time codes, sessions, profile, public branding
 │   │   ├── performance.js     ← KPIs, targets, submissions, evidence, action plans, employees
-│   │   ├── desk.js            ← service desk, notifications
+│   │   ├── notifications.js   ← notifications (mark read)
 │   │   ├── admin.js           ← users, permissions, settings, branding, backups, API keys, audit
 │   │   ├── ai.js              ← AI assistant
 │   │   ├── chat.js            ← internal messages
@@ -114,7 +112,7 @@ shaggar-pms/
 │       ├── core.js            ← state, API client, access helpers, charts, translations, icons
 │       ├── shell.js           ← layout, navigation, sign-in, data tables, search, dialogs, start-up
 │       ├── performance.js     ← dashboard, scorecards, KPIs, targets, reporting, alerts, employees, reports
-│       ├── services.js        ← service desk, citizen portal, notifications
+│       ├── services.js        ← notifications
 │       ├── admin.js           ← users, audit, settings and branding, workflows, security, backups, API, quality
 │       ├── assistant.js       ← AI assistant
 │       └── chat.js            ← internal messages
@@ -179,7 +177,6 @@ Roles marked **2-step** also need a 6-digit code. While the SMS gateway is not a
 | `sena.o` | Sena Olana | Department Staff | Land | |
 | `robsan.d` | Robsan Dhaba | Department Staff | Revenue | |
 | `abdi.w` | Abdi Wako | Auditor / Reviewer | City-wide, read-only | ✓ |
-| `citizen` | Citizen (demo account) | Citizen | Own requests only | |
 
 **Try the full workflow:**
 1. Sign in as `meron.a`. Go to **Reporting & approvals** and submit the overdue October report for **INFRA-01** with a file attached.
@@ -228,7 +225,7 @@ Settings come from environment variables, or from `backend/.env` (copy `backend/
 Business rules are changed **inside the system**, not in files. They are stored in the `settings` table and every change is audited:
 
 - **System settings:** scoring thresholds, achievement cap, reporting month, fiscal year, name and logo, departments
-- **Workflows:** approval steps, segregation of duties, evidence rule, escalation timings, priorities and deadlines, request categories
+- **Workflows:** approval steps, segregation of duties, evidence rule, escalation days for reports
 - **Security:** session timeout, lockout, password policy, which roles need 2-step sign-in, personal-data masking
 - **Backup & retention:** retention periods, number of backups kept
 - **Notifications:** SMS and email gateways, and which events use them
@@ -300,7 +297,7 @@ SVG logos are checked on the server and rejected if they contain scripts.
 - **Seed data:** `database/seed.js` (run `npm run seed:reset`).
 - **Upgrades:** `backend/db.js` brings an existing database up to the current schema at start-up (new tables, new columns, new permissions). No data is deleted and no manual step is needed.
 
-Main tables: `users`, `role_permissions`, `sessions`, `departments`, `objectives`, `kpis`, `kpi_targets`, `target_proposals`, `submissions`, `submission_evidence`, `submission_history`, `action_plans`, `action_items`, `employees`, `employee_indicators`, `employee_evidence`, `requests`, `request_history`, `messages`, `notifications`, `outbox`, `audit_log`, `api_keys`, `webhooks`, `backups`, `settings`. The full data dictionary is in the system document, section 7.
+Main tables: `users`, `role_permissions`, `sessions`, `departments`, `objectives`, `kpis`, `kpi_targets`, `target_proposals`, `submissions`, `submission_evidence`, `submission_history`, `action_plans`, `action_items`, `employees`, `employee_indicators`, `employee_evidence`, `messages`, `notifications`, `outbox`, `audit_log`, `api_keys`, `webhooks`, `backups`, `settings`. The full data dictionary is in the system document, section 7.
 
 ---
 
@@ -317,7 +314,6 @@ Main tables: `users`, `role_permissions`, `sessions`, `departments`, `objectives
 | GET | `/api/v1/kpis/{code}/results` | `perf:read` |
 | GET | `/api/v1/alerts` | `perf:read` |
 | POST | `/api/v1/submissions` | `perf:submit` |
-| GET / POST | `/api/v1/requests` | `desk:read` / `desk:write` |
 | GET | `/api/v1/audit?from=&to=` | `audit:read` |
 
 The OpenAPI 3 specification is at **`/api/v1/openapi.json`**. Calls are limited to 60 per minute per key and recorded in the audit trail. Webhooks are POSTed with an `X-Shaggar-Signature: sha256=<HMAC>` header.
@@ -358,8 +354,8 @@ npm test
 - targets: propose, approve, lock and revision; the Super Administrator cannot set targets
 - employees: adding an employee with an account, proposing a target, reporting with evidence, verification
 - departments: automatic code and creation of the head's account
-- messages: delivery, unread counts, privacy from third parties, citizens excluded
-- citizen privacy
+- messages: delivery, unread counts, privacy from third parties
+- planning and reporting only: no service desk and no citizen accounts
 - the audit trail
 - branding, including rejection of an SVG that contains a script
 - backup and integrity check

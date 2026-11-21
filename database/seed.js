@@ -26,11 +26,10 @@ function seed({ reset = false } = {}) {
     /* ---------- settings ---------- */
     db.setSetting('branding', { orgName: 'Shaggar City Administration', office: 'Office of the Mayor', systemName: 'KPI & Performance Management System', shortName: 'Shaggar PMS', logo: null });
     db.setSetting('scoring', { fy: '2026/27', fyNote: '2019 EFY', fyStart: 2026, currentMonth: 4, deadlineDay: 10, bands: { good: 90, warning: 75, serious: 60 }, cap: 120, varianceNote: 90 });
-    db.setSetting('security', { sessionMin: 30, maxAttempts: 5, lockMin: 15, pwMin: 10, pwComplex: true, mfaRoles: ['super_admin', 'mayor', 'mayor_admin', 'dept_head', 'auditor'], maskPII: true, iterations: config.passwordIterations });
+    db.setSetting('security', { sessionMin: 30, maxAttempts: 5, lockMin: 15, pwMin: 10, pwComplex: true, mfaRoles: ['super_admin', 'mayor', 'mayor_admin', 'dept_head', 'auditor'], iterations: config.passwordIterations });
     db.setSetting('workflow', { verifyRequired: true, approveRequired: true, sod: true, evidenceDefault: true, verifyDays: 3, approveDays: 3 });
-    db.setSetting('escalation', { l1Pct: 75, l3Hours: 48 });
-    db.setSetting('notify', { sms: { provider: 'Ethio telecom bulk SMS', sender: 'SHAGGAR', approved: false }, email: { provider: 'City mail server', from: 'no-reply@shaggarcity.example', approved: false }, events: Object.fromEntries(C.EVENTS.map(([k]) => [k, { sms: ['kpi_alert', 'escalation', 'otp', 'request_status'].includes(k), email: k !== 'otp' }])) });
-    db.setSetting('retention', { auditYears: 7, notifDays: 90, outboxDays: 30, requestDays: 30, capDays: 90, backupKeep: 14 });
+    db.setSetting('notify', { sms: { provider: 'Ethio telecom bulk SMS', sender: 'SHAGGAR', approved: false }, email: { provider: 'City mail server', from: 'no-reply@shaggarcity.example', approved: false }, events: Object.fromEntries(C.EVENTS.map(([k]) => [k, { sms: ['kpi_alert', 'escalation', 'otp'].includes(k), email: k !== 'otp' }])) });
+    db.setSetting('retention', { auditYears: 7, notifDays: 90, outboxDays: 30, capDays: 90, backupKeep: 14 });
 
     /* ---------- departments & objectives ---------- */
     const depts = [
@@ -57,7 +56,6 @@ function seed({ reset = false } = {}) {
       ['U12', 'sena.o', 'Sena Olana', 'staff', 'LAND', 'Land Service Officer'],
       ['U13', 'robsan.d', 'Robsan Dhaba', 'staff', 'REV', 'Revenue Officer'],
       ['U14', 'abdi.w', 'Abdi Wako', 'auditor', null, 'Internal Audit'],
-      ['U15', 'citizen', 'Citizen (demo account)', 'citizen', null, 'Resident'],
     ];
     users.forEach(([id, username, name, role, dept, title], i) => {
       const { hash, salt } = hashPassword(DEMO_PASSWORD);
@@ -150,24 +148,6 @@ function seed({ reset = false } = {}) {
     db.insert('action_updates', { id: db.id('U'), plan_id: 'CAP1', kind: 'review', user_id: 'U02', text: "Report progress fortnightly to the Mayor's Office.", at: '2026-10-23T10:00:00.000Z' });
     db.insert('action_plans', { id: 'CAP2', ref: 'CAP-2026-002', dept_id: 'JOB', kpi_id: 'K7', title: 'Accelerate employment creation', trigger_text: 'JOB-01 below 85% in Aug and Sep.', root_cause: 'Weak linkage with industrial park employers; slow verification of temporary jobs.', status: 'In progress', created_by: 'U06', created_at: '2026-10-14T08:00:00.000Z', completed_at: null, archived_at: null });
     [['Sign placement MoUs with 5 industrial park employers', '2026-11-30', 0], ['Deploy mobile verification teams to woredas', '2026-11-15', 1]].forEach(([text, due, done], i) => db.insert('action_items', { id: `CAP2_${i}`, plan_id: 'CAP2', position: i, text, owner_id: 'U06', due_date: due, done }));
-
-    /* ---------- service desk ---------- */
-    [['low', 'Low', 120], ['medium', 'Medium', 72], ['high', 'High', 24], ['urgent', 'Urgent', 8]].forEach(([id, name, hours], i) => db.insert('request_priorities', { id, name, hours, position: i }));
-    [['C1', 'Land & title deeds', 'Complaint', 'LAND', 'high'], ['C2', 'Tax & revenue', 'Complaint', 'REV', 'medium'], ['C3', 'Street lights & roads', 'Service request', 'INFRA', 'medium'], ['C4', 'Drainage & sanitation', 'Service request', 'INFRA', 'high'], ['C5', 'Business licences', 'Service request', 'TRADE', 'low'], ['C6', 'Health services', 'Complaint', 'HEALTH', 'high'], ['C7', 'Meeting with the Mayor', 'Appointment', null, 'medium'], ['C8', 'Employment & enterprise support', 'Service request', 'JOB', 'medium'], ['C9', 'Staff conduct', 'Complaint', null, 'high']]
-      .forEach(([id, name, type, dept, prio]) => db.insert('request_categories', { id, name, type, dept_id: dept, priority_id: prio, active: 1 }));
-    const hours = { low: 120, medium: 72, high: 24, urgent: 8 };
-    const req = (n, type, cat, prio, citizen, phone, subject, details, dept, status, assigned, createdBy, ageH, extra = {}) => {
-      const created = now - ageH * H; const id = 'R' + n;
-      db.insert('requests', { id, ref: 'SR-2026-' + String(n).padStart(4, '0'), type, category_id: cat, priority_id: prio, citizen_name: citizen, phone, subject, details, dept_id: dept, status, assigned_to: assigned, created_by: createdBy, created_at: iso(created), due_at: iso(created + hours[prio] * H), resolved_at: extra.resolvedAgoH != null ? iso(now - extra.resolvedAgoH * H) : null, escalation_level: 0, preferred_date: extra.preferredDate || null, archived_at: null });
-      db.insert('request_history', { id: db.id('Q'), request_id: id, user_id: createdBy, text: 'Registered', at: iso(created) });
-    };
-    req(1, 'Complaint', 'C1', 'high', 'Ayantu Gemeda', '0911 000 101', 'Delay in title deed issuance', 'Applied 3 months ago, no deed yet. File number L-2210.', 'LAND', 'In progress', 'U12', 'U03', 50);
-    req(2, 'Appointment', 'C7', 'medium', 'Investment group representative', '0911 000 102', 'Meeting on investment land allocation', 'Requesting a meeting with the Mayor regarding a manufacturing investment.', null, 'New', null, 'U03', 10, { preferredDate: '2026-11-20' });
-    req(3, 'Service request', 'C3', 'medium', 'Woreda 03 residents', '0911 000 103', 'Street lights not working', 'About 12 street lights off along the main road near the health centre.', 'INFRA', 'Assigned', null, 'U03', 60);
-    req(4, 'Complaint', 'C2', 'medium', 'Bekele Tufa', '0911 000 104', 'Disputed tax assessment', 'Business assessed at a category higher than actual turnover.', 'REV', 'Resolved', 'U13', 'U03', 250, { resolvedAgoH: 200 });
-    req(5, 'Service request', 'C5', 'low', 'Hanna Desalegn', '0911 000 105', 'Trade licence renewal guidance', 'Needs guidance on renewal documents for a pharmacy licence.', 'TRADE', 'New', null, 'U03', 30);
-    req(6, 'Complaint', 'C4', 'high', 'Citizen (demo account)', '0911 000 106', 'Blocked drainage channel', 'Drainage blocked near the market; flooding when it rains.', 'INFRA', 'In progress', null, 'U15', 20);
-    req(7, 'Complaint', 'C6', 'high', 'Galane Hirpa', '0911 000 107', 'Long waiting time at health centre', 'Waited over four hours for a consultation.', 'HEALTH', 'Closed', null, 'U03', 46 * 24, { resolvedAgoH: 45.5 * 24 });
 
     db.insert('notifications', { id: db.id('N'), user_id: 'U05', text: 'LAND-02 Oct submission was returned for correction.', event: 'submission_returned', is_read: 0, created_at: '2026-11-09T08:00:00.000Z' });
     db.insert('notifications', { id: db.id('N'), user_id: 'U02', text: 'Infrastructure scored below 75% for Q1 — corrective action plan CAP-2026-001 opened.', event: 'kpi_alert', is_read: 0, created_at: '2026-10-08T08:00:00.000Z' });

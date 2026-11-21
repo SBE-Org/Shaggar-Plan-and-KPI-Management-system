@@ -150,10 +150,10 @@ async function saveDept(e,id){e.preventDefault();const f=Object.fromEntries(new 
   if(!r)return false;
   if(r.tempPassword)showAccount('Department saved',r.headName,r.username,r.tempPassword);else toast('Department saved');
   return false}
-/* ---------- workflows & service rules ---------- */
+/* ---------- workflows ---------- */
 function vWorkflows(){
-  const W=S.config.workflow,D=S.config.desk,E=S.config.escalation;
-  return `<div class="pagehead"><div><h1>${t('Workflows & service rules')}</h1><p>Configure the approval steps for performance data, request categories, priorities with their deadlines, and when unresolved work escalates.</p></div><button class="btn pri" onclick="saveWorkflows()">${t('Save')} all changes</button></div>
+  const W=S.config.workflow;
+  return `<div class="pagehead"><div><h1>${t('Workflows')}</h1><p>Configure the approval steps for performance data and when late reports are escalated.</p></div><button class="btn pri" onclick="saveWorkflows()">${t('Save')} all changes</button></div>
   <div class="grid g2">
    <div class="card"><h2>Performance data workflow</h2><p class="small ink2" style="margin:4px 0 14px">KPI Officer submits → Department Head verifies → Mayor's Office approves.</p>
     <div class="fg" style="grid-template-columns:1fr">
@@ -162,25 +162,13 @@ function vWorkflows(){
      <label class="toggle"><input type="checkbox" id="wf_s" ${W.sod?'checked':''}> Enforce segregation of duties (no one verifies or approves their own work)</label>
      <label class="toggle"><input type="checkbox" id="wf_e" ${W.evidenceDefault?'checked':''}> New KPIs require evidence by default</label></div>
     <div class="fg" style="margin-top:14px"><div><label class="f">Escalate if not verified within (days)</label><input type="number" id="wf_vd" min="0" value="${W.verifyDays}"></div><div><label class="f">Escalate if not approved within (days)</label><input type="number" id="wf_ad" min="0" value="${W.approveDays}"></div></div></div>
-   <div class="card"><h2>Escalation rules for requests</h2><p class="small ink2" style="margin:4px 0 14px">Checked automatically at every sign-in.</p>
-    <ol style="margin:0 0 14px;padding-left:18px;font-size:13.5px;line-height:1.8"><li><b>Level 1</b> — warn the department head and assignee when the request has used <input type="number" id="es_1" value="${E.l1Pct}" min="10" max="99" style="width:70px;height:30px"> % of its time.</li><li><b>Level 2</b> — at the deadline, escalate to the Mayor's Office administrators.</li><li><b>Level 3</b> — <input type="number" id="es_3" value="${E.l3Hours}" min="1" style="width:70px;height:30px"> hours after the deadline, escalate to the Mayor.</li></ol>
-    <h3 style="margin:8px 0">Priorities and deadlines</h3>
-    <table class="tbl"><thead><tr><th>Priority</th><th>Resolve within (hours)</th></tr></thead><tbody>${D.priorities.map((p,i)=>`<tr><td>${prioChip(p.id)}</td><td><input type="number" id="pr_${i}" value="${p.hours}" min="1" style="width:110px" aria-label="${esc(p.name)} hours"></td></tr>`).join('')}</tbody></table></div>
-  </div>
-  <div class="card" style="margin-top:16px"><div class="cardhead"><h2>Request categories</h2><button class="btn sm" onclick="addCategory()">${ico('plus',15)} Add category</button></div>
-   <div class="tblwrap"><table class="tbl"><thead><tr><th>Category</th><th>Type</th><th>Routed to</th><th>Default priority</th></tr></thead><tbody>
-   ${D.categories.map((c,i)=>`<tr><td><input id="ca_n_${i}" value="${esc(c.name)}" style="width:100%" aria-label="Category name"></td><td><select id="ca_t_${i}" aria-label="Type">${['Complaint','Service request','Appointment'].map(x=>`<option ${x===c.type?'selected':''}>${x}</option>`).join('')}</select></td><td><select id="ca_d_${i}" aria-label="Routed to"><option value="">Mayor's Office</option>${S.depts.map(d=>`<option value="${d.id}" ${d.id===c.deptId?'selected':''}>${esc(d.short)}</option>`).join('')}</select></td><td><select id="ca_p_${i}" aria-label="Default priority">${D.priorities.map(p=>`<option value="${p.id}" ${p.id===c.priority?'selected':''}>${esc(p.name)}</option>`).join('')}</select></td></tr>`).join('')}
-   </tbody></table></div></div>`;
+  </div>`;
 }
-function addCategory(){collectWorkflows();S.config.desk.categories.push({id:'',name:'New category',type:'Service request',deptId:null,priority:'medium'});render()}
-function collectWorkflows(){const W=S.config.workflow,D=S.config.desk,E=S.config.escalation;
+function collectWorkflows(){const W=S.config.workflow;
   if(!$('#wf_v'))return;
-  Object.assign(W,{verifyRequired:$('#wf_v').checked,approveRequired:$('#wf_a').checked,sod:$('#wf_s').checked,evidenceDefault:$('#wf_e').checked,verifyDays:+$('#wf_vd').value,approveDays:+$('#wf_ad').value});
-  E.l1Pct=+$('#es_1').value;E.l3Hours=+$('#es_3').value;
-  D.priorities.forEach((p,i)=>p.hours=+$('#pr_'+i).value);
-  D.categories.forEach((c,i)=>{c.name=$('#ca_n_'+i).value;c.type=$('#ca_t_'+i).value;c.deptId=$('#ca_d_'+i).value||null;c.priority=$('#ca_p_'+i).value});}
-async function saveWorkflows(){collectWorkflows();const c=S.config;
-  try{await api('PUT','/api/settings/workflow',c.workflow);await api('PUT','/api/settings/escalation',c.escalation);await api('PUT','/api/desk-config',{priorities:c.desk.priorities,categories:c.desk.categories});await reload();toast('Workflow rules saved')}catch(e){onApiError(e);await reload()}}
+  Object.assign(W,{verifyRequired:$('#wf_v').checked,approveRequired:$('#wf_a').checked,sod:$('#wf_s').checked,evidenceDefault:$('#wf_e').checked,verifyDays:+$('#wf_vd').value,approveDays:+$('#wf_ad').value});}
+async function saveWorkflows(){collectWorkflows();
+  try{await api('PUT','/api/settings/workflow',S.config.workflow);await reload();toast('Workflow rules saved')}catch(e){onApiError(e);await reload()}}
 /* ---------- security ---------- */
 function vSecurity(){
   const P=S.config.security;const https=location.protocol==='https:';
@@ -193,7 +181,6 @@ function vSecurity(){
    ['good','Session timeout',`Signed out after ${P.sessionMin} minutes of inactivity.`],
    ['good','Encrypted backups','Downloaded backups are encrypted with AES-256-GCM using a key derived from a passphrase (PBKDF2, 210,000 iterations).'],
    ['good','Server-side checks','Every API call re-checks the user’s role and department; the browser only receives data the user may see.'],
-   [P.maskPII?'good':'warning','Personal data masking',P.maskPII?'Citizen phone numbers are masked by the server for roles that do not handle the request.':'Masking is off — all roles with access see full phone numbers.'],
    ['good','Role-based access','Every screen and record is checked against the role permission matrix and the user’s department scope.'],
    ['good','Audit trail','Sign-ins, changes, approvals, assignments and exports are logged with before and after values.'],
   ];
@@ -206,7 +193,6 @@ function vSecurity(){
      <div><label class="f">Lockout duration (minutes)</label><input type="number" name="lockMin" min="5" value="${P.lockMin}"></div>
      <div><label class="f">Minimum password length</label><input type="number" name="pwMin" min="8" max="64" value="${P.pwMin}"></div>
      <div class="full"><label class="toggle"><input type="checkbox" name="pwComplex" ${P.pwComplex?'checked':''}> Require upper- and lower-case letters, a number and a symbol</label></div>
-     <div class="full"><label class="toggle"><input type="checkbox" name="maskPII" ${P.maskPII?'checked':''}> Mask citizens’ phone numbers for roles that do not handle the request</label></div>
      <div class="full"><label class="f">Send sign-in codes by</label><select name="otpChannel"><option value="email" ${P.otpChannel!=='sms'?'selected':''}>Email (to the address on the account)</option><option value="sms" ${P.otpChannel==='sms'?'selected':''}>SMS (needs an approved SMS gateway)</option></select></div>
      <div class="full"><label class="f">Two-step verification required for</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${Object.keys(ROLES).map(r=>`<label class="toggle"><input type="checkbox" name="mfa_${r}" ${P.mfaRoles.includes(r)?'checked':''}> ${ROLES[r]}</label>`).join('')}</div></div>
      <div class="full"><button class="btn pri">Save policy</button></div></form></div>
@@ -230,7 +216,7 @@ async function testEmail(e){e.preventDefault();const to=new FormData(e.target).g
   try{const r=await api('POST','/api/email/test',{to});toast(`Test email sent to ${r.to}. Check the inbox and the spam folder.`)}catch(err){openModal('The test email was not sent',`<p>${esc(err.message)}</p><p class="small muted">Check the API key, and that the sender address in EMAIL_FROM is verified with the email service.</p>`,`<button class="btn pri" onclick="closeModal()">Close</button>`)}
   b.disabled=false;return false}
 function saveSecurity(e){e.preventDefault();const f=new FormData(e.target);
-  act('PUT','/api/settings/security',{sessionMin:+f.get('sessionMin'),maxAttempts:+f.get('maxAttempts'),lockMin:+f.get('lockMin'),pwMin:+f.get('pwMin'),pwComplex:!!f.get('pwComplex'),maskPII:!!f.get('maskPII'),otpChannel:f.get('otpChannel')==='sms'?'sms':'email',mfaRoles:Object.keys(ROLES).filter(r=>f.get('mfa_'+r))},'Security policy saved');return false}
+  act('PUT','/api/settings/security',{sessionMin:+f.get('sessionMin'),maxAttempts:+f.get('maxAttempts'),lockMin:+f.get('lockMin'),pwMin:+f.get('pwMin'),pwComplex:!!f.get('pwComplex'),otpChannel:f.get('otpChannel')==='sms'?'sms':'email',mfaRoles:Object.keys(ROLES).filter(r=>f.get('mfa_'+r))},'Security policy saved');return false}
 /* ---------- backup, retention & archive ---------- */
 function createBackup(){act('POST','/api/backups',{},'Backup created')}
 function verifyBackup(id){act('POST',`/api/backups/${id}/verify`,{},r=>r.ok?'Integrity check passed — checksum matches':'Integrity check FAILED — this backup is damaged')}
@@ -243,7 +229,7 @@ function importBackupModal(){openModal('Restore from a backup file',`<form id="i
 async function importBackup(e){e.preventDefault();const f=new FormData(e.target);let obj;
   try{obj=JSON.parse(await f.get('file').text())}catch(err){toast('This file is not a backup file.');return false}
   act('POST','/api/backups/import',{file:obj,passphrase:f.get('p')},'Backup restored');return false}
-function runArchival(){act('POST','/api/archive/run',{},r=>`Archival complete — ${r.ar} request(s) and ${r.ac} plan(s) archived`)}
+function runArchival(){act('POST','/api/archive/run',{},r=>`Archival complete — ${r.ac} action plan(s) archived`)}
 function restoreArchived(kind,id){act('POST','/api/archive/restore',{kind,id},'Record restored from archive')}
 function vData(){
   const tab=UI.tab.data||'backups';const R=S.config.retention;const bs=S.backups;
@@ -255,7 +241,6 @@ function vData(){
    </tbody></table></div><p class="small muted" style="margin:10px 0 0">The server takes an automatic backup every day and a safety backup before every restore. The newest ${R.backupKeep} are kept — download encrypted copies to keep longer or off-site.</p></div>`;
   if(tab==='retention')body=`<div class="grid g2"><div class="card"><h2 style="margin-bottom:14px">Retention rules</h2><form class="fg" onsubmit="return saveRetention(event)">
     <div><label class="f">Keep audit trail (years)</label><input type="number" name="auditYears" min="1" value="${R.auditYears}"></div>
-    <div><label class="f">Archive resolved requests after (days)</label><input type="number" name="requestDays" min="1" value="${R.requestDays}"></div>
     <div><label class="f">Archive completed action plans after (days)</label><input type="number" name="capDays" min="1" value="${R.capDays}"></div>
     <div><label class="f">Delete notifications after (days)</label><input type="number" name="notifDays" min="7" value="${R.notifDays}"></div>
     <div><label class="f">Delete outbox messages after (days)</label><input type="number" name="outboxDays" min="7" value="${R.outboxDays}"></div>
@@ -265,14 +250,12 @@ function vData(){
    <div class="card"><h2 style="margin-bottom:10px">Records schedule</h2><table class="tbl"><thead><tr><th>Record</th><th>Active</th><th>Then</th></tr></thead><tbody>
     <tr><td>KPI targets, submissions and evidence</td><td>Current + 2 fiscal years</td><td>Archive; keep 10 years</td></tr>
     <tr><td>Audit trail</td><td>${R.auditYears} years</td><td>Delete</td></tr>
-    <tr><td>Citizen requests</td><td>${R.requestDays} days after closure</td><td>Archive; keep 5 years</td></tr>
     <tr><td>Corrective action plans</td><td>${R.capDays} days after completion</td><td>Archive; keep 10 years</td></tr>
     <tr><td>Notifications</td><td>${R.notifDays} days</td><td>Delete</td></tr>
     <tr><td>SMS/email outbox</td><td>${R.outboxDays} days</td><td>Delete</td></tr>
     <tr><td>Backups (production)</td><td>30 daily, 12 monthly</td><td>Delete oldest</td></tr></tbody></table>
     <p class="small muted" style="margin:10px 0 0">Periods are proposals for approval by the City’s records management office.</p></div></div>`;
-  if(tab==='archive')body=`<div class="card"><h2 style="margin-bottom:10px">Archived requests (${S.archive.requests.length})</h2>${S.archive.requests.length?`<table class="tbl"><thead><tr><th>Reference</th><th>Subject</th><th>${t('Status')}</th><th>Archived</th><th></th></tr></thead><tbody>${S.archive.requests.map(r=>`<tr><td class="mono">${esc(r.ref)}</td><td>${esc(r.subject)}</td><td>${rChip(r.status)}</td><td>${dshort(r.archivedAt)}</td><td class="right"><button class="btn sm" onclick="restoreArchived('requests','${r.id}')">Restore</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">Nothing archived yet.</div>'}</div>
-   <div class="card"><h2 style="margin-bottom:10px">Archived action plans (${S.archive.caps.length})</h2>${S.archive.caps.length?`<table class="tbl"><tbody>${S.archive.caps.map(c=>`<tr><td class="mono">${esc(c.ref)}</td><td>${esc(c.title)}</td><td>${dshort(c.archivedAt)}</td><td class="right"><button class="btn sm" onclick="restoreArchived('caps','${c.id}')">Restore</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">Nothing archived yet.</div>'}</div>`;
+  if(tab==='archive')body=`<div class="card"><h2 style="margin-bottom:10px">Archived action plans (${S.archive.caps.length})</h2>${S.archive.caps.length?`<table class="tbl"><tbody>${S.archive.caps.map(c=>`<tr><td class="mono">${esc(c.ref)}</td><td>${esc(c.title)}</td><td>${dshort(c.archivedAt)}</td><td class="right"><button class="btn sm" onclick="restoreArchived('caps','${c.id}')">Restore</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">Nothing archived yet.</div>'}</div>`;
   if(tab==='procedures')body=`<div class="grid g2"><div class="card"><h2>Backup procedure (production)</h2><ol style="padding-left:18px;line-height:1.8;font-size:13.5px">
     <li>The server takes a full, consistent backup every day automatically (and before every restore).</li><li>Replicate the evidence folder (storage/uploads) to a second location; add disk snapshots for a 15-minute recovery point.</li><li>Copy the backups folder, or an encrypted download, off-site every week (separate data centre or approved cloud region).</li><li>Check this page weekly: the latest daily backup should be from today and pass Verify.</li><li>Backup files checked with checksums after every run.</li></ol>
     <h3 style="margin-top:14px">Targets</h3><dl class="kv" style="margin-top:6px"><dt>Recovery point objective</dt><dd>24 hours with the built-in backup; 15 minutes with replication or snapshots</dd><dt>Recovery time objective</dt><dd>4 hours to restore service</dd></dl></div>
@@ -282,7 +265,7 @@ function vData(){
   return `<div class="pagehead"><div><h1>${t('Backup & retention')}</h1><p>Backups with integrity checks and encrypted download, retention and archival rules, and the recovery procedure.</p></div></div>
   <div class="tabs">${[['backups','Backups'],['retention','Retention & archival'],['archive','Archive'],['procedures','Procedures']].map(([k,l])=>`<button class="${tab===k?'on':''}" onclick="UI.tab.data='${k}';render()">${l}</button>`).join('')}</div>${body}`;
 }
-function saveRetention(e){e.preventDefault();const f=new FormData(e.target);const v={};['auditYears','requestDays','capDays','notifDays','outboxDays','backupKeep'].forEach(k=>v[k]=+f.get(k));act('PUT','/api/settings/retention',v,'Retention rules saved');return false}
+function saveRetention(e){e.preventDefault();const f=new FormData(e.target);const v={};['auditYears','capDays','notifDays','outboxDays','backupKeep'].forEach(k=>v[k]=+f.get(k));act('PUT','/api/settings/retention',v,'Retention rules saved');return false}
 /* ---------- integrations & API ---------- */
 let ENDPOINTS=[];
 async function loadEndpoints(){if(ENDPOINTS.length)return;try{ENDPOINTS=await api('GET','/api/v1/endpoints');render()}catch(e){}}

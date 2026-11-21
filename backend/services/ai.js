@@ -28,8 +28,6 @@ function tools(user) {
       run: () => ({ items: S.subs.filter(s => ['submitted', 'verified', 'returned'].includes(s.status)).map(s => { const k = S.kpis.find(x => x.id === s.kpiId); return { k, s }; }).filter(x => ids.includes(x.k.deptId)).map(({ k, s }) => ({ kpi: `${k.code} ${k.name}`, department: dept(k.deptId).short, month: MONTHS[s.m], status: s.status, waiting_days: Math.floor((Date.now() - Date.parse(s.status === 'verified' ? s.verifiedAt : s.submittedAt)) / 864e5) })) }) },
     { name: 'list_action_plans', description: 'Corrective action plans with progress and overdue actions.', input_schema: { type: 'object', properties: {} },
       run: () => { const today = db.now().slice(0, 10); return { plans: S.caps.filter(c => ids.includes(c.deptId)).map(c => ({ ref: c.ref, department: dept(c.deptId).short, title: c.title, status: c.status, root_cause: c.rootCause, overdue: c.actions.filter(a => !a.done && a.due < today).map(a => `${a.text} (due ${a.due})`) })) }; } },
-    { name: 'list_service_requests', description: 'Citizen requests the user may see. status optional.', input_schema: { type: 'object', properties: { status: { type: 'string' } } },
-      run: ({ status }) => ({ requests: db.all('SELECT * FROM requests WHERE archived_at IS NULL').filter(r => (access.requestVisible(user, r) || access.can(user, 'all_depts')) && (!status || r.status === status)).map(r => ({ ref: r.ref, type: r.type, subject: r.subject, status: r.status, priority: r.priority_id, due: r.due_at, escalation_level: r.escalation_level })) }) },
   ];
 }
 

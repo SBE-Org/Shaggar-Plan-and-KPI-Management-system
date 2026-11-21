@@ -3,7 +3,7 @@
 ## Shaggar PMS — KPI & Performance Management System
 
 **Owner:** Shaggar City Administration, Office of the Mayor
-**Version:** 1.6 (see `CHANGES.md` for what changed since 1.0)
+**Version:** 1.8 (see `CHANGES.md` for what changed since 1.0)
 **Fiscal year in sample data:** 2026/27 (2019 EFY)
 **Status:** Ready for pilot. Translations and figures marked as draft or illustrative need approval before go-live.
 
@@ -40,7 +40,6 @@ This document describes what the Shaggar PMS does and how it works: its users, f
 The system covers:
 - KPI and performance management for city departments: objectives, KPIs, targets, reporting, verification, approval, scorecards, alerts and corrective actions
 - individual employee performance indicators and evaluation
-- a service desk for citizen complaints, service requests and appointment requests, with a self-service citizen portal
 - administration: users and access, workflow rules, security policy, notifications, backups and retention, integrations, quality checks, branding, and the audit trail
 - an AI executive assistant that answers questions from the system's data
 
@@ -59,18 +58,16 @@ Showing percentages alone does not manage performance. The system adds a complet
 | 2 | AI assistant | Leadership, KPI officers, auditors | Ask questions in plain language; draft memos |
 | 3 | Department scorecards | All performance roles | Weighted KPI scorecard grouped by strategic objective |
 | 4 | KPIs & targets | Departments (propose), Mayor's Office (approve), others (view) | What each department is measured on and its targets, on one page |
-| 6 | Reporting & approvals | KPI officers, department heads, Mayor's Office | Submit, verify and approve results with evidence |
-| 7 | Alerts & actions | Department heads, Mayor's Office | Automatic alerts; corrective action plans |
-| 8 | Employees | Employees (propose and report), department heads (approve, verify, evaluate) | Individual targets, self-reported results with evidence, evaluation |
-| 9 | Reports | Leadership, auditors | Evaluation report with narrative, CSV export |
-| 10 | Service desk | Mayor's Office administrators, department heads, staff | Route, assign and resolve citizen requests |
-| 11 | Citizen portal | Citizens | Submit and track requests |
-| 12 | Notifications | Everyone | In-system inbox; SMS and email outbox |
-| 13 | Users & access | Super Administrator | Accounts, roles, permission matrix |
-| 14 | Settings | Super Administrator | Scoring, calendar, name and logo, departments, workflows, security |
-| 15 | Data & integrations | Super Administrator | Backups, retention, archive, API keys, webhooks |
-| 16 | Quality & testing | Super Administrator | Accessibility and performance checks, usability plan |
-| 17 | Audit trail | Mayor, auditors, administrators | Who did what, when, and what changed |
+| 5 | Reporting & approvals | KPI officers, department heads, Mayor's Office | Submit, verify and approve results with evidence |
+| 6 | Alerts & actions | Department heads, Mayor's Office | Automatic alerts; corrective action plans |
+| 7 | Employees | Employees (propose and report), department heads (approve, verify, evaluate) | Individual targets, self-reported results with evidence, evaluation |
+| 8 | Reports | Leadership, auditors | Evaluation report with narrative, CSV export |
+| 10 | Notifications | Everyone | In-system inbox; SMS and email outbox |
+| 11 | Users & access | Super Administrator | Accounts, roles, permission matrix |
+| 12 | Settings | Super Administrator | Scoring, calendar, name and logo, departments, workflows, security |
+| 13 | Data & integrations | Super Administrator | Backups, retention, archive, API keys, webhooks |
+| 14 | Quality & testing | Super Administrator | Accessibility and performance checks, usability plan |
+| 15 | Audit trail | Mayor, auditors, administrators | Who did what, when, and what changed |
 
 ---
 
@@ -82,11 +79,10 @@ Showing percentages alone does not manage performance. The system adds a complet
 |---|---|---|
 | **Super Administrator** | Full system configuration and management. A technical role: it does **not** set or approve targets | City-wide |
 | **Mayor** | Executive overview, decision monitoring, final approval of reports and of proposed targets | City-wide |
-| **Mayor's Office Administrator** | Meetings, complaints, assignments, correspondence; approves performance data and proposed targets | City-wide |
+| **Mayor's Office Administrator** | Daily coordination for the Mayor; approves performance data and proposed targets | City-wide |
 | **Department Head** | Department activities, KPIs, proposing targets, verification, corrective actions, adding employees, approving individual targets, verifying employee results, staff evaluation | Own department |
-| **Department Staff** | Assigned tasks and service requests; proposes own individual targets and reports own results with evidence | Own department / own assignments / own performance record |
+| **Department Staff** | Proposes own individual targets and reports own results with evidence | Own department / own assignments / own performance record |
 | **KPI Officer** | Performance submissions and reporting; drafts target proposals | Own department, or city-wide for central M&E (no department set) |
-| **Citizen** | Appointment, complaint and request registration and tracking | Own requests |
 | **Auditor / Reviewer** | Read-only access to authorised reports and audit records | City-wide, read-only |
 
 ### 3.2 How access is decided
@@ -97,16 +93,8 @@ Every request to the server is checked in this order:
 4. **Record rules.** Some rules apply to individual records:
    - only the head of the KPI's department can verify a report
    - segregation of duties: nobody verifies or approves their own work
-   - staff see only requests assigned to them
-   - citizens see only their own requests
+   - staff see only their own performance record
    - nobody can evaluate themselves
-
-### 3.3 Personal data
-Citizen phone numbers are masked by the server (for example `0911 ••• ••• 101`) for users who do not handle that request. The only users who see them in full are:
-- Mayor's Office intake staff
-- the assigned officer
-- the head of the responsible department
-- the citizen who submitted the request
 
 ---
 
@@ -163,7 +151,7 @@ The yearly target is shared equally across the months. A closed **More options**
 - Every proposal, edit, approval, return and withdrawal is recorded in the audit trail.
 - The Super Administrator keeps separate tools at the foot of the page to maintain the city goals and to add a KPI directly. That permission can be switched off in the permission matrix.
 
-### 4.5 Reporting & approvals
+### 4.4 Reporting & approvals
 - **Reporting calendar:** a grid of KPIs against months, with a status in each cell. Statuses are: Approved, Verified · awaiting approval, Awaiting verification, Returned, Draft, Overdue, Open for reporting, and Not yet due.
 - **Submission form:**
   - shows the target, formula and data source
@@ -181,7 +169,7 @@ The yearly target is shared equally across the months. A closed **More options**
 - **Awaiting my action** lists what the user must act on. Approvers also see **Approve all verified**, which respects segregation of duties.
 - **All submissions** is a searchable, filterable, paged and exportable table.
 
-### 4.6 Alerts & corrective actions
+### 4.5 Alerts & corrective actions
 - Alerts are generated automatically (rules in §5.6). Each alert offers the next step: **Submit now**, **Open**, **Create action plan**, or a link to the existing plan.
 - A **corrective action plan** has:
   - a reference (CAP-YYYY-NNN), department and linked KPI
@@ -190,7 +178,7 @@ The yearly target is shared equally across the months. A closed **More options**
   - progress updates and Mayor's Office review comments
   - a status: Open, In progress or Completed. A plan can be completed only when all of its actions are done.
 
-### 4.7 Employee performance
+### 4.6 Employee performance
 Individual performance follows the same principle as department performance: the person who proposes or reports is not the person who approves or verifies.
 
 1. **Add the employee.** The Department Head adds the employee (name, position) and can create a sign-in account in the same step. The temporary password is shown once.
@@ -203,7 +191,7 @@ Individual performance follows the same principle as department performance: the
 - Staff open their own record under **My performance**; they never see colleagues' records.
 - Every step is recorded in the audit trail, and both sides are notified.
 
-### 4.8 Reports & evaluation
+### 4.7 Reports & evaluation
 The performance evaluation report for the selected period contains:
 1. An automatically written executive summary: the index, best and worst departments, the biggest KPI gaps, alerts and open plans.
 2. Department results with previous-period and last-year comparisons.
@@ -213,53 +201,38 @@ The performance evaluation report for the selected period contains:
 
 **Copy summary** and **Copy KPI data (CSV)** buttons are provided.
 
-### 4.9 AI assistant
+### 4.8 AI assistant
 The assistant answers questions about the performance data the user is allowed to see, explains how to do things in the system, and drafts memos. It cannot change anything, every question is recorded in the audit trail, and each user is limited to 30 questions per hour.
 
 It works in two modes:
 
-- **Built-in assistant (default, no cost).** It recognises the kind of question and answers from live data: a briefing; one department; one KPI by code or name; which departments need attention; the weakest KPIs; comparison with last year; ranking; what is waiting for the user; overdue reports; alerts; action plans; KPI and target proposals; employees; citizen requests; a draft memo to a department head; and how-to questions such as "How do I propose a KPI?". When it cannot match a question it lists what it can answer.
+- **Built-in assistant (default, no cost).** It recognises the kind of question and answers from live data: a briefing; one department; one KPI by code or name; which departments need attention; the weakest KPIs; comparison with last year; ranking; what is waiting for the user; overdue reports; alerts; action plans; KPI and target proposals; employees; a draft memo to a department head; and how-to questions such as "How do I propose a KPI?". When it cannot match a question it lists what it can answer.
 - **Connected AI model (optional).** With `ANTHROPIC_API_KEY` (paid per use) or `OLLAMA_URL` (self-hosted) set on the server, free-form questions go to the model, which uses read-only tools limited to the user's scope. If the model cannot be reached, the built-in assistant answers and says why.
 
-### 4.10 Service desk
-- **Categories** (for example Land & title deeds, Street lights & roads, Meeting with the Mayor). Each category has a type, the department it routes to, and a default priority.
-- **Priorities and deadlines:** Low 120 h, Medium 72 h, High 24 h, Urgent 8 h, all configurable.
-- **Lifecycle:** New → Assigned → In progress → Resolved → Closed (§6.2).
-  - Mayor's Office administrators register requests and route them to a department.
-  - Department heads assign staff.
-  - Staff update the status and add notes.
-- **Deadline status** shows Due in…, Overdue…, Met deadline or Missed deadline. Escalation levels L1–L3 are shown on the request.
-- **Lists:** all, new/unrouted, escalated, and assigned to me or my department. All lists can be searched, filtered, paged and exported.
-
-### 4.11 Citizen portal
-- Citizens start an appointment, complaint or service request, receive a reference (SR-YYYY-NNNN) and get SMS updates once SMS is approved.
-- **Track a request** shows the history without staff names.
-- **My requests** lists everything the citizen has submitted.
-
-### 4.11a Messages
+### 4.9 Messages
 A built-in chat for staff, so departments can write to the Mayor, the Mayor's Office, an administrator or another department without leaving the system.
 
-- **One-to-one conversations** between any two staff accounts. Citizens are excluded.
+- **One-to-one conversations** between any two staff accounts.
 - **New** opens the list of people, grouped by office and department and searchable by name, role or department.
 - The conversation list shows the latest message, its time and an unread count. The **Messages** entry in the sidebar shows the total unread, and a short notice appears when a message arrives while the user is on another page.
 - New messages appear within a few seconds without reloading, and a message being typed is never interrupted. Sent messages show "read" once the other person has opened them.
 - **Privacy:** only the two participants can read a conversation. Administrators cannot read other people's messages through the system. The audit trail records that a conversation was started, never what was said.
 - Messages are text only, up to 2,000 characters each. Files are not attached here; evidence belongs with the report it supports.
-- The permission "Send and receive internal messages" controls access per role (on for every role except Citizen).
+- The permission "Send and receive internal messages" controls access per role (on for every role).
 
-### 4.12 Notifications
+### 4.10 Notifications
 - **Inbox:** every user can filter by event and read status, and mark all as read. The bell in the top bar shows unread notifications.
-- **Click to open:** clicking a notification, in the bell or the inbox, marks it read and opens what it is about: the report, the proposed KPI or targets, the action plan, the citizen request or the employee record. Citizens are taken to the request in the portal.
+- **Click to open:** clicking a notification, in the bell or the inbox, marks it read and opens what it is about: the report, the proposed KPI or targets, the action plan or the employee record.
 - **Channels & rules** (administrators):
   - SMS and email gateway details, each with an "approved for use" switch
   - an event × channel matrix that sets which events use SMS or email
 - **Outbox** (administrators): every SMS and email with its status — Held, Sent or Failed.
 
-### 4.13 Users & access
+### 4.11 Users & access
 - **Users:** create (a temporary password is shown once, and the user must change it at first sign-in), edit, disable, reset password, unlock.
 - **Roles & permission matrix:** grant or revoke permissions per role.
 
-### 4.13a Email and sign-in codes
+### 4.12 Email and sign-in codes
 - **Every account needs a working email address.** It is required when an account is created (users, department heads, and employees given a sign-in account), and users can correct their own under **My profile**.
 - **Two-step sign-in sends the 6-digit code by email** to the address on the account. The sign-in screen shows the address partly hidden. Codes are valid for 5 minutes and are never stored in readable form.
 - **Email service.** Mail goes through an HTTPS email service, because most hosts block direct mail ports. Set `BREVO_API_KEY` or `RESEND_API_KEY`, and `EMAIL_FROM` (a sender address verified with that service), in the server variables.
@@ -267,7 +240,7 @@ A built-in chat for staff, so departments can write to the Mayor, the Mayor's Of
 - **Demonstration mode** also shows the code on the sign-in screen. With it off, a code that cannot be emailed stops the sign-in with the reason, so turn it off only after the test email arrives and the accounts have real addresses.
 - The policy can be switched to SMS under **Settings → Security** once an SMS gateway is approved.
 
-### 4.14 Settings
+### 4.13 Settings
 - **Scoring & calendar:**
   - status thresholds (on track, alert, critical)
   - achievement cap and variance-explanation threshold
@@ -281,14 +254,14 @@ A built-in chat for staff, so departments can write to the Mayor, the Mayor's Of
   - The **code** is filled in automatically from the short name (for example "Water Supply" gives `WATER`; a number is added if the code is taken). It can be changed before saving.
   - The **department head's name is typed in**; it is not chosen from a list. Saving creates the head's account (role Department Head, limited to that department) with a suggested username and a temporary password that is shown once.
   - On edit, a corrected name updates the same person. Ticking "A new person is taking over" creates a new account and switches off the previous head's account.
-- **Workflows:** approval steps, segregation of duties, the evidence default, escalation days for reports, request escalation levels, priority deadlines and request categories.
+- **Workflows:** approval steps, segregation of duties, the evidence default, and escalation days for reports.
 - **Security:** session timeout, lockout, password policy, 2-step sign-in roles and personal-data masking. This page also lists the active controls and the production hardening checklist.
 
-### 4.15 Data & integrations
+### 4.14 Data & integrations
 - **Backup & retention:** create, verify, restore, download (encrypted) and delete backups; restore from a file; retention rules; run archival; browse and restore archived records; written backup and recovery procedures.
 - **Integrations & API:** endpoint documentation and the OpenAPI file, API keys (create, scope, revoke), a console that sends live requests, and webhooks.
 
-### 4.16 Quality & testing
+### 4.15 Quality & testing
 - **Run automated checks** renders every screen the administrator can open and checks:
   - labelled form fields
   - named buttons
@@ -301,13 +274,13 @@ A built-in chat for staff, so departments can write to the Mayor, the Mayor's Of
 - Results are stored.
 - A usability-session tracker and the pre-go-live test plan are included.
 
-### 4.17 Audit trail
+### 4.16 Audit trail
 - The audit trail is filtered and paged on the server. Filters: text search, category, user (including "System"), record type and date range.
 - Each entry shows when, who (with role), the action, a category tag, the record, details, and the changed fields as before → after.
 - Category counts are shown. **Export CSV** produces a full filtered export, and the export itself is audited.
 
-### 4.18 Global features
-- **Search** (Ctrl/⌘ K) across pages, departments, KPIs, action plans, requests and people.
+### 4.17 Global features
+- **Search** (Ctrl/⌘ K) across pages, departments, KPIs, action plans and people.
 - **Themes:** navy (default) and light.
 - **Languages:** English, Afaan Oromoo and Amharic.
 - **Collapsible sidebar** with grouped navigation and count badges; a profile card with My profile, Change password and Sign out.
@@ -371,13 +344,6 @@ On approval, the server also sends notifications:
 
 ### 5.7 Escalation rules (configurable)
 
-**Service requests** (checked every 10 minutes):
-
-| Level | When | Who is told |
-|---|---|---|
-| 1 | 75% of the resolution time has passed | Department head and assignee (or Mayor's Office if unrouted) |
-| 2 | Deadline passed | Mayor's Office administrators |
-| 3 | 48 hours after the deadline | The Mayor |
 
 **Performance reports:**
 - submitted but not verified within 3 days: the department head and approvers are told
@@ -414,15 +380,7 @@ On approval, the server also sends notifications:
 - The report shows where it stands and who acts next. While a report waits for verification, the Mayor's Office can remind the department head or return the report, but cannot approve it until it is verified.
 - **Reminders:** the Mayor's Office can remind the department head (report awaiting verification) or the department (report overdue, draft or returned); a department head can remind their own KPI officers. One reminder per report and step every 12 hours; each is recorded in the audit trail.
 
-### 6.2 Service request
-
-```
- registered ─▶ New ──route/assign──▶ Assigned ──▶ In progress ──▶ Resolved ──▶ Closed ──(after retention)──▶ Archived
-                 │                                                        ▲
-                 └──── category with a department: routed automatically ──┘   escalation L1 → L2 → L3 while open
-```
-
-### 6.3 KPI proposal
+### 6.2 KPI proposal
 ```
  Department proposes KPI + targets ─▶ Awaiting approval ─approve─▶ Approved: active, targets locked
                                             │  ▲
@@ -431,7 +389,7 @@ On approval, the server also sends notifications:
                                       Returned for revision ─withdraw─▶ removed
 ```
 
-### 6.3a Changes to approved targets
+### 6.3 Changes to approved targets
 ```
  Not yet approved ─propose─▶ Awaiting approval ─approve─▶ Approved · locked ─revision request (reason)─▶ Awaiting approval
                                    │  ▲
@@ -469,7 +427,7 @@ The schema is in `database/schema.sql`. Ids are TEXT, timestamps are ISO-8601 UT
 
 | Table | Purpose | Key columns |
 |---|---|---|
-| `settings` | Configuration documents (JSON) | `key` (branding, scoring, security, workflow, escalation, notify, retention), `value`, `updated_by` |
+| `settings` | Configuration documents (JSON) | `key` (branding, scoring, security, workflow, notify, retention), `value`, `updated_by` |
 | `departments` | Organisation units | `id` (code), `name`, `short_name`, `head_user_id` |
 | `users` | Accounts | `username`, `role`, `dept_id`, `password_hash`, `password_salt`, `failed_attempts`, `locked_until`, `must_change`, `active`, `lang` |
 | `role_permissions` | Permission matrix | `role`, `permission` |
@@ -485,8 +443,6 @@ The schema is in `database/schema.sql`. Ids are TEXT, timestamps are ISO-8601 UT
 | `submission_history` | Workflow steps | `submission_id`, `user_id`, `action`, `comment`, `at` |
 | `action_plans` / `action_items` / `action_updates` | Corrective action plans | `ref`, `dept_id`, `kpi_id`, `root_cause`, `status` / `text`, `owner_id`, `due_date`, `done` / `kind` (update, review), `text` |
 | `employees` / `employee_indicators` / `employee_evidence` / `employee_evaluations` | Individual performance | `dept_id`, `user_id` / `target`, `weight`, `kpi_id`, `status`, `reported_actual`, `report_status`, `actual` (verified), `verified_by` / `file_name`, `sha256` / `rating`, `comment`, `evaluated_by` |
-| `request_priorities` / `request_categories` | Service desk rules | `hours` / `type`, `dept_id`, `priority_id` |
-| `requests` / `request_history` | Citizen requests | `ref`, `category_id`, `priority_id`, `status`, `assigned_to`, `due_at`, `resolved_at`, `escalation_level`, `archived_at` |
 | `messages` | Internal one-to-one messages | `from_id`, `to_id`, `body`, `created_at`, `read_at` |
 | `notifications` | In-system inbox | `user_id`, `text`, `event`, `link` (what it is about, opened on click), `is_read` |
 | `outbox` | SMS and email queue | `channel`, `recipient`, `status` (held, sent, failed) |
@@ -509,7 +465,7 @@ The schema is in `database/schema.sql`. Ids are TEXT, timestamps are ISO-8601 UT
                  │ HTTPS · JSON · HttpOnly session cookie
  ┌───────────────┴──────────────────────── backend/ (Node.js 22) ─────────────────────────────┐
  │ server.js: routing · session check · must-change-password gate · CSRF origin check · errors│
- │ routes/: auth · performance · desk · admin · ai · publicApi (/api/v1, API keys)            │
+ │ routes/: auth · performance · notifications · admin · ai · chat · publicApi (/api/v1, API keys)            │
  │ lib/: access (roles, scope) · audit · notify (inbox, outbox, webhooks) · security · http   │
  │ services/: state (per-user data, engine) · automation (scheduler) · backup · ai            │
  └──────┬───────────────────────────┬─────────────────────────────┬───────────────────────────┘
@@ -530,7 +486,7 @@ The schema is in `database/schema.sql`. Ids are TEXT, timestamps are ISO-8601 UT
 
 ### 8.3 Background automation
 `services/automation.js` runs at start-up and every 10 minutes:
-- request and report escalations
+- report escalations
 - daily archival (retention purge, archiving of closed records, removal of expired sessions and codes)
 - the daily backup
 
@@ -554,7 +510,6 @@ The schema is in `database/schema.sql`. Ids are TEXT, timestamps are ISO-8601 UT
 | Authorisation | Permission and department scope checked on every endpoint; responses filtered on the server; segregation of duties enforced on the server |
 | Web security | Content-Security-Policy, X-Frame-Options DENY, nosniff, Referrer-Policy, HSTS with HTTPS; same-origin check on state-changing requests; JSON size limit; all output escaped in the browser |
 | Files | Allowed types only; 10 MB per file; stored outside the web root with generated names; SHA-256 fingerprint; download checks the user's scope; SVG logos scanned for scripts |
-| Personal data | Phone numbers masked on the server for users who do not handle the request; staff names hidden from citizens' tracking view |
 | Encryption | In transit: TLS through the reverse proxy. Downloaded backups: AES-256-GCM with a PBKDF2 key (210,000 iterations) and an integrity tag |
 | Accountability | Append-only audit trail with before and after values, IP address and category; covers sign-in, failures, lockouts, exports, API calls and AI questions |
 | API | Hashed API keys with scopes; 60 calls per minute; revocation; every call audited; webhooks signed with HMAC-SHA256 |
@@ -581,8 +536,6 @@ The schema is in `database/schema.sql`. Ids are TEXT, timestamps are ISO-8601 UT
 | Corrective action plan created | In-system, email |
 | Targets proposed; targets approved or returned | In-system, email |
 | Employee result reported or verified | In-system, email |
-| New citizen request; request assigned or routed | In-system, email |
-| Request status changed (sent to the citizen) | In-system, SMS, email |
 | Escalation | In-system, SMS, email |
 | Sign-in verification code | SMS only |
 
@@ -641,7 +594,6 @@ Data sent to an external provider is limited to the requesting user's scope. The
 | Record | Kept active | Then |
 |---|---|---|
 | Audit trail | 7 years | Deleted |
-| Resolved or closed requests | 30 days after closure | Archived (restorable) |
 | Completed action plans | 90 days after completion | Archived (restorable) |
 | Notifications | 90 days | Deleted |
 | SMS and email outbox | 30 days | Deleted |
@@ -699,22 +651,20 @@ The password for all accounts is **`Shaggar@2026`**. With `DEMO_MODE=true` the 2
 | `sena.o` | Department Staff | Land | |
 | `robsan.d` | Department Staff | Revenue | |
 | `abdi.w` | Auditor / Reviewer | City-wide, read-only | ✓ |
-| `citizen` | Citizen | Own requests | |
 
 **Sample data** (illustrative):
 - 6 departments, 5 strategic objectives and 18 KPIs with FY 2026/27 targets
 - July–September results approved; October results at mixed workflow stages
 - last year's quarterly results
-- 18 employees, 2 corrective action plans and 7 citizen requests
+- 18 employees and 2 corrective action plans
 
 **Demonstration script (about 15 minutes):**
 1. **Mayor (`mayor`).** On the dashboard, Infrastructure is lowest. Open its scorecard and plan CAP-2026-001. Ask the AI assistant "Which departments need my attention?".
 2. **KPI Officer (`meron.a`).** In Reporting & approvals, submit the overdue October INFRA-01 report with a PDF. A short narrative is refused, and is accepted once the explanation is long enough.
 3. **Department Head (`kedir.m`).** Verify the report. Try returning another report with a reason.
-4. **Mayor's Office Administrator (`chaltu.b`).** Approve the report and watch the scorecard change. On the service desk, assign the street-light request.
-5. **Citizen (`citizen`).** Submit a complaint and track it by reference.
-6. **Auditor (`abdi.w`).** In the audit trail, filter by Approval and export to CSV.
-7. **Administrator (`tolera.g`).** Change the name and logo, create a backup and verify it, create an API key and call it from the console, then run the quality checks.
+4. **Mayor's Office Administrator (`chaltu.b`).** Approve the report and watch the scorecard change.
+5. **Auditor (`abdi.w`).** In the audit trail, filter by Approval and export to CSV.
+6. **Administrator (`tolera.g`).** Change the name and logo, create a backup and verify it, create an API key and call it from the console, then run the quality checks.
 
 ---
 
@@ -727,7 +677,7 @@ The password for all accounts is **`Shaggar@2026`**. With `DEMO_MODE=true` the 2
 4. Assigning the Department Head role makes that person the department's head.
 
 ### 14.2 Staff member leaves
-Edit the user, set the account to **Disabled** (their sessions end at once), and reassign their KPIs and open requests.
+Edit the user, set the account to **Disabled** (their sessions end at once), and reassign their KPIs.
 
 ### 14.3 New fiscal year
 1. Take and download a backup.
@@ -764,7 +714,6 @@ Go to **Settings → System settings → Name & logo** (README, "Changing the na
 | Translations | Menus, titles, statuses and sign-in are translated, as drafts | Full translation and approval by the City's language committee |
 | SMS and email | Generic HTTP gateway adapter; held until approved | Connect the chosen provider (e.g. the Ethio telecom bulk SMS API) |
 | Database | SQLite (single server) | Move to PostgreSQL for clustering or high availability |
-| Meetings and correspondence | Appointments are handled in the service desk | Dedicated meeting calendar and correspondence register |
 | Single sign-on | Local accounts with 2-step codes | Connect to the City directory (LDAP/AD, OpenID Connect) |
 | Reports | On screen, with CSV copy | PDF export with letterhead; scheduled email reports |
 | Mobile | Responsive web | Installable app (PWA) for offline submission |
@@ -773,26 +722,23 @@ Go to **Settings → System settings → Name & logo** (README, "Changing the na
 
 ## Appendix A — Permission matrix (defaults)
 
-| Permission | Super Admin | Mayor | Mayor's Office Admin | Dept Head | Staff | KPI Officer | Citizen | Auditor |
-|---|---|---|---|---|---|---|---|---|
-| View dashboards & scorecards | ✓ | ✓ | ✓ | ✓ | | ✓ | | ✓ |
-| See all departments | ✓ | ✓ | ✓ | | | | | ✓ |
-| Define & edit KPIs | ✓ | | | | | | | |
-| Set targets | ✓ | | | | | | | |
-| Submit performance data | ✓ | | | | | ✓ | | |
-| Verify submissions | ✓ | | | ✓ | | | | |
-| Approve submissions | ✓ | ✓ | ✓ | | | | | |
-| Corrective action plans | ✓ | | | ✓ | | | | |
-| Evaluate employees | ✓ | | | ✓ | | | | |
-| View & export reports | ✓ | ✓ | ✓ | ✓ | | ✓ | | ✓ |
-| Register & route requests | ✓ | | ✓ | | | | | |
-| Handle assigned requests | ✓ | | | ✓ | ✓ | | | |
-| Citizen portal | | | | | | | ✓ | |
-| View audit trail | ✓ | ✓ | | | | | | ✓ |
-| Manage users & permissions | ✓ | | | | | | | |
-| System configuration | ✓ | | | | | | | |
-| Export records (CSV) | ✓ | ✓ | ✓ | ✓ | | ✓ | | ✓ |
-| Use the AI assistant | ✓ | ✓ | ✓ | ✓ | | ✓ | | ✓ |
+| Permission | Super Admin | Mayor | Mayor's Office Admin | Dept Head | Staff | KPI Officer | Auditor |
+|---|---|---|---|---|---|---|---|
+| View dashboards & scorecards | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ |
+| See all departments | ✓ | ✓ | ✓ | | | | ✓ |
+| Define & edit KPIs | ✓ | | | | | | |
+| Set targets | ✓ | | | | | | |
+| Submit performance data | ✓ | | | | | ✓ | |
+| Verify submissions | ✓ | | | ✓ | | | |
+| Approve submissions | ✓ | ✓ | ✓ | | | | |
+| Corrective action plans | ✓ | | | ✓ | | | |
+| Evaluate employees | ✓ | | | ✓ | | | |
+| View & export reports | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ |
+| View audit trail | ✓ | ✓ | | | | | ✓ |
+| Manage users & permissions | ✓ | | | | | | |
+| System configuration | ✓ | | | | | | |
+| Export records (CSV) | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ |
+| Use the AI assistant | ✓ | ✓ | ✓ | ✓ | | ✓ | ✓ |
 
 KPI Officers with no department act city-wide (central M&E).
 
@@ -806,7 +752,6 @@ KPI Officers with no department act city-wide (central M&E).
 | **Cap** | The maximum achievement counted in scores (default 120%) |
 | **Provisional** | Data submitted or verified but not yet approved |
 | **CAP** | Corrective action plan |
-| **SLA / deadline** | The time allowed to resolve a request, set by its priority |
 | **Escalation** | Automatic notification to a higher level when work is late |
 | **EFY** | Ethiopian fiscal year (2019 EFY = 2026/27) |
 | **2-step sign-in** | Password plus a one-time code sent by SMS |

@@ -1,3 +1,40 @@
+# Changes in version 1.8
+
+## Planning and reporting only: the service desk is removed
+The system is now only for planning, reporting and performance management by the
+administration's own staff. It does not take complaints, service requests or appointments.
+
+- **Removed:** the Service desk page, request registration and routing, request categories
+  and priorities, the request escalation rules (Workflows page), request archiving and the
+  phone-number masking setting, request notifications, the assistant's request answers, and
+  the `/api/v1/requests` endpoints with their `desk:read` / `desk:write` API key scopes.
+- **Staff accounts** keep their own performance record (individual targets, results and
+  evaluation), messages and notifications.
+- The **Workflows** page now holds the performance workflow only (approval steps, segregation
+  of duties, evidence rule and escalation days for late reports).
+- **Fixed:** a report waiting too long for verification could send its escalation reminder
+  again on every scheduler run; it is now sent once.
+- **Existing databases** are upgraded automatically at start-up: the request tables are
+  dropped, and the service desk permissions, settings, notifications, webhook events and
+  API key scopes are removed. Restoring an older backup removes them again, so they cannot
+  come back that way. Older backups still contain the old requests if they are ever needed.
+
+# Changes in version 1.7
+
+## Office use only: the citizen account type is removed
+- The **Citizen** role, the **citizen portal** and everything citizens could do in the system
+  (submitting and tracking their own requests) are removed. The system now has seven account
+  types, all for staff of the administration.
+- The **service desk stays**, for office use: the Mayor's Office registers complaints, service
+  requests and appointments for people who come in or call, routes them to departments, heads
+  assign staff and staff resolve them, with the same time limits and escalation as before.
+  Other systems can still register requests through the API.
+- The citizen role can no longer be given to an account, and the permission is gone from the
+  permission table.
+- **Existing databases** are upgraded automatically at start-up: citizen accounts are switched
+  off and signed out, and their permissions removed. Requests they submitted are kept and stay
+  with the office. Nothing else changes.
+
 # Changes in version 1.6
 
 - **Database on Neon (PostgreSQL)** when `DATABASE_URL` is set. The backend has its own small

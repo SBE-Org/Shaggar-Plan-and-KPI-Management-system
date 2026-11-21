@@ -10,16 +10,11 @@ function config() {
   const scoring = db.getSetting('scoring'), branding = db.getSetting('branding');
   return {
     ...scoring, org: branding.orgName, office: branding.office, branding,
-    security: db.getSetting('security'), workflow: db.getSetting('workflow'), escalation: db.getSetting('escalation'),
+    security: db.getSetting('security'), workflow: db.getSetting('workflow'),
     notify: db.getSetting('notify'), retention: db.getSetting('retention'),
     emailProvider: env.brevoApiKey ? 'Brevo' : env.resendApiKey ? 'Resend' : env.emailApiUrl ? 'custom gateway' : null, emailFrom: env.emailFrom || null, demoMode: env.demoMode,
-    desk: {
-      priorities: db.all('SELECT id, name, hours FROM request_priorities ORDER BY position'),
-      categories: db.all('SELECT id, name, type, dept_id AS "deptId", priority_id AS priority FROM request_categories WHERE active = 1 ORDER BY id'),
-    },
   };
 }
-const maskPhone = p => { if (!p) return null; const d = p.replace(/\s/g, ''); return d.slice(0, 4) + ' ••• ••• ' + d.slice(-3); };
 
 function kpisWithTargets(where = '', ...p) {
   const kpis = db.all(`SELECT * FROM kpis ${where} ORDER BY code`, ...p);
@@ -46,15 +41,6 @@ function plans(deptIds, archived = false) {
     actions: items[c.id] || [], updates: (ups[c.id] || []).filter(u => u.kind === 'update').map(u => ({ at: u.at, by: u.user_id, text: u.text })), review: (ups[c.id] || []).filter(u => u.kind === 'review').map(u => ({ at: u.at, by: u.user_id, text: u.text })),
   }));
 }
-function requestRow(r, user, hist) {
-  const seePII = !db.getSetting('security').maskPII || access.can(user, 'desk_intake') || r.assigned_to === user.id || r.created_by === user.id || (user.role === 'dept_head' && r.dept_id === user.dept_id);
-  return { id: r.id, ref: r.ref, type: r.type, category: r.category_id, priority: r.priority_id, citizenName: r.citizen_name, phone: seePII ? r.phone : maskPhone(r.phone), phoneMasked: !seePII, subject: r.subject, details: r.details, deptId: r.dept_id, status: r.status, assignedTo: r.assigned_to, createdBy: r.created_by, createdAt: r.created_at, dueAt: r.due_at, resolvedAt: r.resolved_at, esc: r.escalation_level, preferredDate: r.preferred_date, archivedAt: r.archived_at, history: (hist[r.id] || []).map(h => ({ at: h.at, by: h.user_id, text: h.text })) };
-}
-/* Citizens track their own requests without seeing who handles them (guide 4.7):
-   no officer names, no internal escalation notes. */
-function citizenRequestRow(row) {
-  return { ...row, assignedTo: null, history: row.history.filter(h => !/^Escalation/.test(h.text)).map(h => ({ at: h.at, by: h.by === row.createdBy ? h.by : null, text: h.text.replace(/Assigned to [^;—.]+/g, 'Assigned to an officer') })) };
-}
 
 /** Full client state for this user. */
 function bootstrap(user) {
@@ -62,11 +48,8 @@ function bootstrap(user) {
   const can = p => access.can(user, p);
   const perfVisible = can('dash') || can('submit') || can('verify') || can('approve') || can('audit');
   const kpis = perfVisible ? kpisWithTargets().filter(k => ids.includes(k.deptId)) : [];
-  const hist = {}; for (const h of db.all('SELECT * FROM request_history ORDER BY at')) (hist[h.request_id] ||= []).push(h);
-  const reqs = db.all('SELECT * FROM requests WHERE archived_at IS NULL ORDER BY created_at').filter(r => access.requestVisible(user, r)).map(r => requestRow(r, user, hist)).map(r => (user.role === 'citizen' ? citizenRequestRow(r) : r));
   const showContacts = can('users');
-  // citizens receive no staff directory: only their own account
-  const users = db.all('SELECT * FROM users ORDER BY name').filter(u => user.role !== 'citizen' || u.id === user.id).map(u => ({
+  const users = db.all('SELECT * FROM users ORDER BY name').map(u => ({
     id: u.id, name: u.name, role: u.role, deptId: u.dept_id, title: u.title, active: !!u.active, username: u.username,
     ...(showContacts || u.id === user.id ? { phone: u.phone, email: u.email, prefSms: !!u.pref_sms, prefEmail: !!u.pref_email, lastLogin: u.last_login, lockedUntil: u.locked_until, mustChange: !!u.must_change, lang: u.lang } : {}),
   }));
@@ -82,12 +65,12 @@ function bootstrap(user) {
     depts: db.all('SELECT * FROM departments WHERE active = 1 ORDER BY created_at, id').map(d => ({ id: d.id, name: d.name, short: d.short_name, headId: d.head_user_id })),
     objectives: db.all('SELECT * FROM objectives ORDER BY id'),
     users, perms, kpis, prev: perfVisible ? prevYear() : {}, subs: perfVisible ? submissions(kpis.map(k => k.id)) : [],
-    caps: perfVisible ? plans(ids) : [], employees, kpiRefs, targetProposals: perfVisible ? targetProposals(kpis.map(k => k.id)) : [], requests: reqs,
+    caps: perfVisible ? plans(ids) : [], employees, kpiRefs, targetProposals: perfVisible ? targetProposals(kpis.map(k => k.id)) : [],
     notifs: db.all('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 200', user.id).map(n => ({ id: n.id, to: n.user_id, text: n.text, event: n.event, link: n.link || null, at: n.created_at, read: !!n.is_read })),
     outbox: isAdmin ? db.all('SELECT * FROM outbox ORDER BY created_at DESC LIMIT 500').map(o => ({ id: o.id, channel: o.channel, to: o.recipient, userId: o.user_id, text: o.text, event: o.event, at: o.created_at, status: o.status === 'held' ? 'Held — integration pending approval' : o.status === 'sent' ? 'Sent' : 'Failed' })) : [],
     api: isAdmin ? { keys: db.all('SELECT * FROM api_keys ORDER BY created_at').map(k => ({ id: k.id, name: k.name, prefix: k.prefix, scopes: k.scopes.split(','), createdBy: k.created_by, createdAt: k.created_at, lastUsed: k.last_used, revoked: !!k.revoked })), hooks: db.all('SELECT * FROM webhooks').map(h => ({ id: h.id, url: h.url, events: h.events.split(','), active: !!h.active })) } : { keys: [], hooks: [] },
     qa: isAdmin ? { runs: db.all('SELECT * FROM qa_runs ORDER BY at DESC LIMIT 10').map(r => ({ ...JSON.parse(r.results), at: r.at, by: r.run_by, pass: !!r.passed })), sessions: db.all('SELECT * FROM qa_sessions ORDER BY id') } : { runs: [], sessions: [] },
-    archive: isAdmin ? { requests: db.all('SELECT * FROM requests WHERE archived_at IS NOT NULL').map(r => requestRow(r, user, hist)), caps: plans(ids, true) } : { requests: [], caps: [] },
+    archive: isAdmin ? { caps: plans(ids, true) } : { caps: [] },
     backups: isAdmin ? db.all('SELECT * FROM backups ORDER BY created_at DESC').map(b => ({ id: b.id, at: b.created_at, by: b.created_by, kind: b.kind, size: b.size, checksum: b.checksum })) : [],
     chatUnread: can('chat') ? db.get('SELECT COUNT(*) AS n FROM messages WHERE to_id = ? AND read_at IS NULL', user.id).n : 0,
     lastArchival: db.getSetting('lastArchival'),
@@ -110,4 +93,4 @@ function engine(scopeUser = null) {
   return { state: st, ...createEngine({ getState: () => st, scopeIds: () => ids }) };
 }
 
-module.exports = { bootstrap, engine, config, employeeList, maskPhone };
+module.exports = { bootstrap, engine, config, employeeList };

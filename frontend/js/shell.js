@@ -16,9 +16,7 @@ const NAV=[
   ['employees','Employees','users',()=>can('emp_eval')||can('all_depts')||(S.employees||[]).some(e=>e.userId===S.ui.userId)],
   ['reports','Reports','file',()=>can('reports')],
  ]],
- ['Services',[
-  ['desk','Service desk','inbox',()=>can('desk_intake')||can('desk_handle')],
-  ['portal','Citizen portal','home',()=>can('citizen')],
+ ['Communication',[
   ['chat','Messages','chat',()=>can('chat')],
   ['notifications','Notifications','bell',()=>!!me()],
  ]],
@@ -38,10 +36,9 @@ function navCount(v){
   if(v==='chat')return S.chatUnread||0;
   if(v==='kpis')return tpToApprove().length+tpReturned().length+kpiToApprove().length+kpiReturned().length;
   if(v==='employees')return sum((S.employees||[]).map(empTodo));
-  if(v==='desk')return S.requests.filter(r=>deskVisible(r)&&((r.status==='New'&&can('desk_intake'))||(r.assignedTo===S.ui.userId&&!['Resolved','Closed'].includes(r.status)))).length;
   return 0;
 }
-const VIEWS=()=>({dashboard:vDashboard,assistant:vAssistant,scorecards:vScorecards,kpis:vKpis,submissions:vSubmissions,alerts:vAlerts,employees:vEmployees,reports:vReports,desk:vDesk,portal:vPortal,notifications:vNotifications,chat:vChat,users:vUsers,security:vSecurity,workflows:vWorkflows,data:vData,integrations:vIntegrations,quality:vQuality,audit:vAudit,settings:vSettings});
+const VIEWS=()=>({dashboard:vDashboard,assistant:vAssistant,scorecards:vScorecards,kpis:vKpis,submissions:vSubmissions,alerts:vAlerts,employees:vEmployees,reports:vReports,notifications:vNotifications,chat:vChat,users:vUsers,security:vSecurity,workflows:vWorkflows,data:vData,integrations:vIntegrations,quality:vQuality,audit:vAudit,settings:vSettings});
 
 /* ---------- render ---------- */
 function render(){
@@ -70,7 +67,7 @@ function render(){
   <div class="main">
     <header class="top">
       <button class="iconbtn mobile-only" onclick="UI.drawer=true;render()" aria-label="Open menu">${ico('menu')}</button>
-      <button class="searchbtn" onclick="openPalette()" aria-label="Search">${ico('search',17)}<span class="lbl">${t('Search KPIs, requests, people…')}</span><kbd>Ctrl K</kbd></button>
+      <button class="searchbtn" onclick="openPalette()" aria-label="Search">${ico('search',17)}<span class="lbl">${t('Search KPIs, departments, people…')}</span><kbd>Ctrl K</kbd></button>
       <div class="grow"></div>
       ${can('ai')?`<button class="iconbtn hide-sm" onclick="go('assistant')" aria-label="${t('AI assistant')}" title="${t('AI assistant')}">${ico('sparkle')}</button>`:''}
       ${can('config')?`<button class="iconbtn" onclick="go('settings')" aria-label="${t('Settings')}" title="${t('Settings')}">${ico('gear')}</button>`:''}
@@ -273,7 +270,7 @@ async function tblExport(id){
 
 /* ---------- command palette ---------- */
 const PAL={q:'',sel:0,items:[]};
-function openPalette(){PAL.q='';PAL.sel=0;$('#palette').innerHTML=`<div class="pal" role="dialog" aria-label="Search"><input id="palq" placeholder="${t('Search KPIs, requests, people…')}" aria-label="${t('Search')}" oninput="PAL.q=this.value;PAL.sel=0;palRender()" onkeydown="palKey(event)"><div class="res" id="palres"></div></div>`;$('#palette').classList.add('open');palRender();setTimeout(()=>$('#palq').focus(),10)}
+function openPalette(){PAL.q='';PAL.sel=0;$('#palette').innerHTML=`<div class="pal" role="dialog" aria-label="Search"><input id="palq" placeholder="${t('Search KPIs, departments, people…')}" aria-label="${t('Search')}" oninput="PAL.q=this.value;PAL.sel=0;palRender()" onkeydown="palKey(event)"><div class="res" id="palres"></div></div>`;$('#palette').classList.add('open');palRender();setTimeout(()=>$('#palq').focus(),10)}
 function closePalette(){$('#palette').classList.remove('open');$('#palette').innerHTML=''}
 function palItems(){
   const q=PAL.q.toLowerCase().trim();const out=[];const m=s=>!q||s.toLowerCase().includes(q);
@@ -283,7 +280,6 @@ function palItems(){
     S.kpis.filter(k=>inScope(k.deptId)&&m(k.code+' '+k.name)).forEach(k=>out.push({g:'KPIs',l:`${k.code} ${k.name}`,ic:'book',sub:dept(k.deptId).short,act:`kpiDetail('${k.id}')`}));
     S.caps.filter(c=>inScope(c.deptId)&&m(c.ref+' '+c.title)).forEach(c=>out.push({g:'Action plans',l:`${c.ref} ${c.title}`,ic:'alert',act:`capDetail('${c.id}')`}));
   }
-  S.requests.filter(r=>(deskVisible(r)||r.createdBy===S.ui.userId)&&m(r.ref+' '+r.subject+' '+r.citizenName)).forEach(r=>out.push({g:'Requests',l:`${r.ref} ${r.subject}`,ic:'inbox',sub:r.status,act:can('desk_intake')||can('desk_handle')?`reqDetail('${r.id}')`:`go('portal')`}));
   if(can('users'))S.users.filter(u=>m(u.name+' '+u.username)).forEach(u=>out.push({g:'People',l:u.name,ic:'user',sub:ROLES[u.role],act:`userForm('${u.id}')`}));
   return out.slice(0,q?40:14);
 }

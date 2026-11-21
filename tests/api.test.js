@@ -36,7 +36,8 @@ test('health and public branding', async () => {
   assert.equal((await call('GET', '/api/health')).json.ok, true);
   const b = await call('GET', '/api/public/branding');
   assert.equal(b.json.branding.orgName, 'Shaggar City Administration');
-  assert.ok(b.json.demo.accounts.length >= 15);
+  assert.ok(b.json.demo.accounts.length >= 14);
+  assert.ok(!b.json.demo.accounts.some(a => a.role === 'citizen'), 'no citizen demo account');
 });
 
 test('wrong password is rejected and audited', async () => {
@@ -84,15 +85,19 @@ test('submit → verify → approve workflow with evidence and segregation of du
   assert.equal(await file.text(), '%PDF-1.4 test');
 });
 
-test('citizen requests and privacy', async () => {
-  const cit = await login('citizen');
-  const r = await call('POST', '/api/requests', { category: 'C3', phone: '0911 222 333', subject: 'Pothole on my street', details: 'Deep pothole' }, cit);
-  assert.equal(r.status, 200);
-  const boot = (await call('GET', '/api/bootstrap', null, cit)).json;
-  assert.ok(boot.requests.every(x => x.createdBy === boot.me), 'citizens only see their own requests');
-  const auditor = await login('abdi.w');
-  const ab = (await call('GET', '/api/bootstrap', null, auditor)).json;
-  assert.equal(ab.requests.length, 0, 'auditor is not a service desk role');
+test('planning and reporting only: the service desk is gone', async () => {
+  const office = await login('chaltu.b');
+  assert.equal((await call('POST', '/api/requests', { category: 'C3', citizenName: 'X', phone: '0911', subject: 'S', details: 'D' }, office)).status, 404, 'no request intake');
+  assert.equal((await call('PUT', '/api/requests/R1', { status: 'Closed' }, office)).status, 404);
+  const b = (await call('GET', '/api/bootstrap', null, office)).json;
+  assert.equal(b.requests, undefined, 'no requests in the data');
+  assert.equal(b.config.desk, undefined, 'no service desk settings');
+  const perms = Object.values(b.perms || {}).flat();
+  assert.ok(!perms.some(p => p.startsWith('desk')), 'no service desk permissions');
+  assert.ok(!(b.config.notify?.events && Object.keys(b.config.notify.events).some(k => k.startsWith('request_'))), 'no request notifications');
+  // staff keep their own performance record and messages
+  const staff = (await call('GET', '/api/bootstrap', null, await login('robsan.d'))).json;
+  assert.ok(staff.employees.some(e => e.userId === staff.me), 'staff see their own record');
 });
 
 test('audit trail, branding, backups and public API', async () => {
@@ -109,7 +114,7 @@ test('audit trail, branding, backups and public API', async () => {
   const key = (await call('POST', '/api/api-keys', { name: 'Test', scopes: ['perf:read'] }, admin)).json.key;
   const d = await call('GET', '/api/v1/departments', null, null, { Authorization: `Bearer ${key}` });
   assert.equal(d.status, 200); assert.equal(d.json.data.length, 6);
-  assert.equal((await call('POST', '/api/v1/requests', { category: 'C3', subject: 'x', phone: '1' }, null, { Authorization: `Bearer ${key}` })).status, 403);
+  assert.equal((await call('POST', '/api/v1/requests', { category: 'C3', subject: 'x', phone: '1' }, null, { Authorization: `Bearer ${key}` })).status, 404, 'no request endpoint in the public API');
 });
 
 test('targets: department proposes, Mayor\'s Office approves, approved targets are locked', async () => {
@@ -201,13 +206,11 @@ test('departments: code generated from the short name, head account created on s
 });
 
 test('messages: private one-to-one conversations between staff accounts', async () => {
-  const head = await login('gemechis.t'), mayor = await login('mayor'), other = await login('kedir.m'), citizen = await login('citizen');
+  const head = await login('gemechis.t'), mayor = await login('mayor'), other = await login('kedir.m');
   const users = (await call('GET', '/api/bootstrap', null, head)).json.users;
   const id = n => users.find(u => u.username === n).id;
   assert.equal((await call('POST', `/api/chat/with/${id('mayor')}`, { text: '   ' }, head)).status, 422);
   assert.equal((await call('POST', `/api/chat/with/${id('gemechis.t')}`, { text: 'to myself' }, head)).status, 422);
-  assert.equal((await call('POST', `/api/chat/with/${id('citizen')}`, { text: 'hello' }, head)).status, 422, 'citizens cannot be messaged');
-  assert.equal((await call('GET', '/api/chat', null, citizen)).status, 403, 'citizens have no messaging');
   const sent = await call('POST', `/api/chat/with/${id('mayor')}`, { text: 'Revenue report is ready for your review.' }, head);
   assert.equal(sent.status, 200, JSON.stringify(sent.json));
   assert.equal((await call('GET', '/api/chat/unread', null, mayor)).json.unread, 1);
@@ -332,14 +335,14 @@ test('awaiting verification: the Mayor cannot approve, but can return it to the 
   if (other) assert.equal((await call('POST', `/api/submissions/${other.id}/action`, { action: 'return', comment: 'Not allowed here.' }, await login('abdi.w'))).status, 403);
 });
 
-test('citizens do not receive staff names', async () => {
-  const cit = await login('citizen');
-  const b = (await call('GET', '/api/bootstrap', null, cit)).json;
-  assert.equal(b.users.length, 1); assert.equal(b.users[0].id, b.me);
-  for (const r of b.requests) {
-    assert.equal(r.assignedTo, null);
-    for (const h of r.history) { assert.ok(!/^Escalation/.test(h.text)); assert.ok(h.by === null || h.by === b.me); }
-  }
+test('office use only: there is no citizen account type', async () => {
+  const admin = await login('tolera.g');
+  const b = (await call('GET', '/api/bootstrap', null, admin)).json;
+  assert.ok(!b.users.some(u => u.role === 'citizen'), 'no citizen accounts');
+  assert.ok(!Object.keys(b.perms || {}).includes('citizen') && !Object.values(b.perms || {}).flat().includes('citizen'), 'no citizen permissions');
+  const r = await call('POST', '/api/users', { name: 'A Resident', username: 'a.resident', role: 'citizen', email: 'resident@example.com' }, admin);
+  assert.equal(r.status, 422, 'the citizen role cannot be given');
+  assert.equal((await call('POST', '/api/auth/login', { username: 'citizen', password: PW })).status, 401);
 });
 
 test('backups: restore puts the data back, and an encrypted file restores on either engine', async () => {
@@ -435,4 +438,16 @@ test('with ORIGIN_SECRET set, the API answers only requests forwarded by the Ver
     assert.equal(r.status, 200, JSON.stringify(r.json));
     assert.equal((await call('POST', '/api/auth/login', { username: 'sena.o', password: PW }, null, { ...fwd, Origin: 'https://evil.example' })).status, 403);
   } finally { config.originSecret = ''; }
+});
+
+test('restoring an older backup does not bring back removed features', async () => {
+  const admin = await login('tolera.g');
+  const backup = require('../backend/services/backup');
+  const data = backup.dump();
+  data.tables.role_permissions.push({ role: 'staff', permission: 'desk_handle' }, { role: 'citizen', permission: 'citizen' });
+  data.tables.settings.push({ key: 'escalation', value: JSON.stringify({ l1Pct: 75, l3Hours: 48 }), updated_at: new Date().toISOString(), updated_by: null });
+  await backup.restoreData({ user: { id: (await call('GET', '/api/bootstrap', null, admin)).json.me } }, data, 'old backup');
+  const b = (await call('GET', '/api/bootstrap', null, admin)).json;
+  assert.ok(!Object.values(b.perms).flat().some(p => p.startsWith('desk') || p === 'citizen'));
+  assert.ok(!Object.keys(b.perms).includes('citizen'));
 });

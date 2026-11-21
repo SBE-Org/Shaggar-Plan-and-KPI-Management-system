@@ -1,5 +1,5 @@
 /* Administration: users & permissions, settings (incl. branding), departments,
-   service-desk rules, backups & archive, API keys & webhooks, quality records,
+   backups & archive, API keys & webhooks, quality records,
    audit trail queries and export logging. */
 const db = require('../db');
 const { route, fail, sendFile } = require('../lib/http');
@@ -18,7 +18,7 @@ function userFields(b) {
   const f = { name: String(b.name || '').trim(), role: b.role, dept_id: b.deptId || null, title: String(b.title || ''), phone: String(b.phone || ''), email: String(b.email || '').trim(), active: b.active === false ? 0 : 1 };
   if (!f.name) fail(422, 'Enter the full name.');
   // every account needs a working address: sign-in codes and notifications are sent to it
-  if (f.role !== 'citizen' && !isEmail(f.email)) fail(422, 'Enter a valid email address. Sign-in codes are sent to it.');
+  if (!isEmail(f.email)) fail(422, 'Enter a valid email address. Sign-in codes are sent to it.');
   if (!C.ROLES[f.role]) fail(422, 'Choose a valid role.');
   if (['dept_head', 'staff'].includes(f.role) && !f.dept_id) fail(422, 'Department Heads and Staff must belong to a department.');
   return f;
@@ -72,7 +72,7 @@ route('PUT', '/api/permissions', ctx => {
 const SETTING_VALIDATORS = {
   scoring: v => { const b = v.bands; if (!(b.good > b.warning && b.warning > b.serious)) fail(422, 'Thresholds must go from highest to lowest.'); if (!(v.currentMonth >= 0 && v.currentMonth <= 11)) fail(422, 'Invalid reporting month.'); },
   security: v => { if (v.sessionMin < 5 || v.maxAttempts < 3 || v.pwMin < 8) fail(422, 'Policy values are below the allowed minimum.'); },
-  workflow: () => {}, escalation: v => { if (!(v.l1Pct > 0 && v.l1Pct < 100)) fail(422, 'Level 1 must be between 1 and 99%.'); },
+  workflow: () => {},
   retention: v => { if (v.auditYears < 1 || v.backupKeep < 2) fail(422, 'Retention values are below the allowed minimum.'); },
   notify: () => {},
   branding: v => {
@@ -96,7 +96,7 @@ route('PUT', '/api/settings/:key', async ctx => {
   if (key === 'branding') { value.logo = ctx.body.logo === undefined ? before.logo : ctx.body.logo; }
   db.setSetting(key, value, ctx.user.id);
   const flat = o => Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [k, k === 'logo' ? (v ? `image (${Math.round(v.length / 1365)} KB)` : 'default') : typeof v === 'object' ? JSON.stringify(v).slice(0, 120) : v]));
-  const label = { scoring: 'Settings changed', security: 'Security policy changed', workflow: 'Workflow rules changed', escalation: 'Workflow rules changed', retention: 'Retention policy changed', notify: 'Notification settings changed', branding: 'Branding changed (name and logo)' }[key];
+  const label = { scoring: 'Settings changed', security: 'Security policy changed', workflow: 'Workflow rules changed', retention: 'Retention policy changed', notify: 'Notification settings changed', branding: 'Branding changed (name and logo)' }[key];
   audit.log(ctx, label, 'Configuration', key, `${key} updated`, flat(before), flat(value));
   if (key === 'notify') for (const ch of ['sms', 'email']) if (!before[ch].approved && value[ch].approved) { const n = await releaseHeld(ch); if (n) audit.log(ctx, 'Held messages released', 'Notification', ch, `${n} ${ch.toUpperCase()} message(s) released to the gateway`); }
   return { ok: true };
@@ -160,20 +160,6 @@ route('PUT', '/api/departments/:id', ctx => {
   if (head) audit.log(ctx, 'User created', 'User', head.headId, `${headName} — ${C.ROLES.dept_head} (${short})`, null, { username: head.username, role: 'dept_head', dept_id: d.id, replaced: cur ? cur.username : null });
   return { ok: true, id: d.id, ...(head || {}), headName: headName || null };
 });
-route('PUT', '/api/desk-config', ctx => {
-  adminOnly(ctx); const b = ctx.body;
-  const before = { priorities: db.all('SELECT name, hours FROM request_priorities ORDER BY position').map(p => `${p.name} ${p.hours}h`).join(', '), categories: db.get('SELECT COUNT(*) n FROM request_categories WHERE active = 1').n };
-  db.tx(() => {
-    for (const p of b.priorities || []) { if (!(p.hours > 0)) fail(422, 'Deadlines must be at least 1 hour.'); db.update('request_priorities', { id: p.id }, { hours: Math.round(p.hours) }); }
-    for (const c of b.categories || []) {
-      if (!String(c.name || '').trim()) continue;
-      const row = { name: c.name.trim(), type: c.type, dept_id: c.deptId || null, priority_id: c.priority, active: 1 };
-      if (c.id && db.get('SELECT id FROM request_categories WHERE id = ?', c.id)) db.update('request_categories', { id: c.id }, row); else db.insert('request_categories', { id: db.id('C'), ...row });
-    }
-  });
-  const after = { priorities: db.all('SELECT name, hours FROM request_priorities ORDER BY position').map(p => `${p.name} ${p.hours}h`).join(', '), categories: db.get('SELECT COUNT(*) n FROM request_categories WHERE active = 1').n };
-  audit.log(ctx, 'Service categories and priorities changed', 'Configuration', 'desk', '', before, after); return { ok: true };
-});
 
 /* ---------- backups & archive ---------- */
 route('POST', '/api/backups', async ctx => { adminOnly(ctx); try { return await backup.create(ctx, 'manual'); } catch (e) { fail(502, e.message); } });
@@ -191,8 +177,7 @@ route('POST', '/api/backups/import', async ctx => { adminOnly(ctx); try { await 
 route('POST', '/api/archive/run', ctx => { adminOnly(ctx); return automation.runArchival(ctx); });
 route('POST', '/api/archive/restore', ctx => {
   adminOnly(ctx); const { kind, id } = ctx.body;
-  if (kind === 'requests') { const r = db.get('SELECT ref FROM requests WHERE id = ?', id) || fail(404, 'Not found.'); db.update('requests', { id }, { archived_at: null, resolved_at: db.now() }); audit.log(ctx, 'Record restored from archive', 'Archive', r.ref, 'request'); }
-  else if (kind === 'caps') { const c = db.get('SELECT ref FROM action_plans WHERE id = ?', id) || fail(404, 'Not found.'); db.update('action_plans', { id }, { archived_at: null, completed_at: db.now() }); audit.log(ctx, 'Record restored from archive', 'Archive', c.ref, 'action plan'); }
+  if (kind === 'caps') { const c = db.get('SELECT ref FROM action_plans WHERE id = ?', id) || fail(404, 'Not found.'); db.update('action_plans', { id }, { archived_at: null, completed_at: db.now() }); audit.log(ctx, 'Record restored from archive', 'Archive', c.ref, 'action plan'); }
   else fail(422, 'Unknown record type.');
   return { ok: true };
 });

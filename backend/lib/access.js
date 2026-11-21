@@ -24,10 +24,5 @@ function scopeIds(user) {
 function requireScope(user, deptId) { if (!scopeIds(user).includes(deptId)) fail(403, 'This record belongs to a department outside your access scope.'); }
 
 /** Who may see a service request */
-function requestVisible(user, r) {
-  if (can(user, 'desk_intake')) return true;
-  if (r.assigned_to === user.id || r.created_by === user.id) return true;
-  return user.role === 'dept_head' && r.dept_id === user.dept_id;
-}
 
-module.exports = { can, requirePerm, scopeIds, requireScope, requestVisible, permissions, resetPermCache };
+module.exports = { can, requirePerm, scopeIds, requireScope, permissions, resetPermCache };

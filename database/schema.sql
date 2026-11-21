@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
   id              TEXT PRIMARY KEY,
   username        TEXT NOT NULL UNIQUE,
   name            TEXT NOT NULL,
-  role            TEXT NOT NULL,           -- super_admin | mayor | mayor_admin | dept_head | staff | kpi_officer | citizen | auditor
+  role            TEXT NOT NULL,           -- super_admin | mayor | mayor_admin | dept_head | staff | kpi_officer | auditor
   dept_id         TEXT REFERENCES departments(id),
   title           TEXT,
   phone           TEXT,
@@ -271,55 +271,6 @@ CREATE TABLE IF NOT EXISTS employee_evaluations (
   rating        TEXT NOT NULL,
   comment       TEXT,
   evaluated_by  TEXT REFERENCES users(id),
-  at            TEXT NOT NULL
-);
-
--- ---------- service desk ----------
-CREATE TABLE IF NOT EXISTS request_priorities (
-  id            TEXT PRIMARY KEY,          -- low | medium | high | urgent
-  name          TEXT NOT NULL,
-  hours         INTEGER NOT NULL,          -- resolution deadline
-  position      INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS request_categories (
-  id            TEXT PRIMARY KEY,
-  name          TEXT NOT NULL,
-  type          TEXT NOT NULL,             -- Complaint | Service request | Appointment
-  dept_id       TEXT REFERENCES departments(id),  -- NULL = Mayor's Office
-  priority_id   TEXT NOT NULL REFERENCES request_priorities(id),
-  active        INTEGER NOT NULL DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS requests (
-  id               TEXT PRIMARY KEY,
-  ref              TEXT NOT NULL UNIQUE,   -- SR-2026-0001
-  type             TEXT NOT NULL,
-  category_id      TEXT REFERENCES request_categories(id),
-  priority_id      TEXT REFERENCES request_priorities(id),
-  citizen_name     TEXT NOT NULL,
-  phone            TEXT,
-  subject          TEXT NOT NULL,
-  details          TEXT,
-  dept_id          TEXT REFERENCES departments(id),
-  status           TEXT NOT NULL,          -- New | Assigned | In progress | Resolved | Closed
-  assigned_to      TEXT REFERENCES users(id),
-  created_by       TEXT REFERENCES users(id),
-  created_at       TEXT NOT NULL,
-  due_at           TEXT,
-  resolved_at      TEXT,
-  escalation_level INTEGER NOT NULL DEFAULT 0,
-  preferred_date   TEXT,
-  archived_at      TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_req_status ON requests(status);
-CREATE INDEX IF NOT EXISTS idx_req_dept ON requests(dept_id);
-
-CREATE TABLE IF NOT EXISTS request_history (
-  id            TEXT PRIMARY KEY,
-  request_id    TEXT NOT NULL REFERENCES requests(id),
-  user_id       TEXT REFERENCES users(id),
-  text          TEXT NOT NULL,
   at            TEXT NOT NULL
 );
 

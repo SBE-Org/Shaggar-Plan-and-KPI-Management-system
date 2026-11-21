@@ -16,7 +16,7 @@ if (db.get('SELECT COUNT(*) AS n FROM users').n === 0) {
 // Route modules register themselves with the router.
 const { sessionUser } = require('./routes/auth');
 require('./routes/performance');
-require('./routes/desk');
+require('./routes/notifications');
 require('./routes/admin');
 require('./routes/ai');
 require('./routes/chat');

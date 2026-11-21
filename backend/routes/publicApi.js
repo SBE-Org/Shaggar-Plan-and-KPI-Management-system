@@ -4,7 +4,6 @@ const { route, fail, rateLimit } = require('../lib/http');
 const audit = require('../lib/audit');
 const { sha256 } = require('../lib/security');
 const state = require('../services/state');
-const { createRequest } = require('./desk');
 const C = require('../../shared/constants');
 
 const ENDPOINTS = [
@@ -14,8 +13,6 @@ const ENDPOINTS = [
   { m: 'GET', p: '/api/v1/kpis/{code}/results', s: 'perf:read', d: 'Monthly targets, approved actuals and achievement for one KPI.', ex: '/api/v1/kpis/LAND-01/results' },
   { m: 'GET', p: '/api/v1/alerts', s: 'perf:read', d: 'Active performance alerts.' },
   { m: 'POST', p: '/api/v1/submissions', s: 'perf:submit', d: 'Submit an actual for a KPI and month. It enters the normal verification workflow.', body: '{"kpi":"TRADE-01","month":3,"actual":950,"note":"From e-Trade system"}' },
-  { m: 'GET', p: '/api/v1/requests', s: 'desk:read', d: 'Service requests. Query: status=New|Assigned|In progress|Resolved|Closed.', ex: '/api/v1/requests?status=New' },
-  { m: 'POST', p: '/api/v1/requests', s: 'desk:write', d: 'Register a citizen request (e.g. from a USSD or call-centre system).', body: '{"category":"C3","citizenName":"Test Citizen","phone":"0911000000","subject":"Street light out","details":"Near the bus stop"}' },
   { m: 'GET', p: '/api/v1/audit', s: 'audit:read', d: 'Audit entries. Query: from=YYYY-MM-DD&to=YYYY-MM-DD.', ex: '/api/v1/audit?from=2026-11-01' },
 ];
 
@@ -58,8 +55,6 @@ route('POST', '/api/v1/submissions', ctx => {
   require('../lib/notify').notify([db.get('SELECT head_user_id h FROM departments WHERE id = ?', k.dept_id).h], `${k.code} ${C.MONTHS[b.month]} submitted via API — awaiting verification.`, 'submission_submitted', null, `sub:${s.id}`);
   ctx.status = 201; return { id: s.id, status: 'submitted' };
 });
-route('GET', '/api/v1/requests', ctx => { auth(ctx, 'desk:read'); return { data: db.all('SELECT * FROM requests WHERE archived_at IS NULL ORDER BY created_at DESC').filter(r => !ctx.query.status || r.status === ctx.query.status).map(r => ({ ref: r.ref, type: r.type, category: r.category_id, priority: r.priority_id, status: r.status, department: r.dept_id, due: r.due_at, created: r.created_at })) }; });
-route('POST', '/api/v1/requests', ctx => { auth(ctx, 'desk:write'); const r = createRequest(ctx, ctx.body, { viaApi: true }); ctx.status = 201; return { ref: r.ref, status: r.status, due: r.due_at }; });
 route('GET', '/api/v1/audit', ctx => { auth(ctx, 'audit:read'); const q = ctx.query; return { data: db.all('SELECT a.*, u.name AS user_name FROM audit_log a LEFT JOIN users u ON u.id = a.user_id ORDER BY a.at DESC LIMIT 500').filter(a => (!q.from || a.at.slice(0, 10) >= q.from) && (!q.to || a.at.slice(0, 10) <= q.to)).map(a => ({ at: a.at, user: a.user_name || 'System', action: a.action, record: `${a.entity} ${a.entity_id || ''}`, details: a.details })) }; });
 
 function openApi() {
@@ -68,7 +63,7 @@ function openApi() {
     (paths[e.p] ||= {})[e.m.toLowerCase()] = { summary: e.d, security: [{ bearerAuth: [e.s] }], parameters: (e.p.match(/\{(\w+)\}/g) || []).map(x => ({ name: x.slice(1, -1), in: 'path', required: true, schema: { type: 'string' } })), ...(e.body ? { requestBody: { content: { 'application/json': { example: JSON.parse(e.body) } } } } : {}), responses: { 200: { description: 'OK' }, 201: { description: 'Created' }, 401: { description: 'Missing or invalid API key' }, 403: { description: 'Key lacks the required scope' }, 422: { description: 'Validation failed' }, 429: { description: 'Rate limit exceeded' } } };
   }
   const b = db.getSetting('branding');
-  return { openapi: '3.0.3', info: { title: `${b.shortName} API`, version: '1.0.0', description: 'REST API for KPIs, scorecards, submissions, service requests and audit records. Every call needs an API key with the listed scope and is recorded in the audit trail.' }, components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } }, paths };
+  return { openapi: '3.0.3', info: { title: `${b.shortName} API`, version: '1.0.0', description: 'REST API for KPIs, scorecards, submissions and audit records. Every call needs an API key with the listed scope and is recorded in the audit trail.' }, components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } }, paths };
 }
 route('GET', '/api/v1/openapi.json', () => openApi());
 route('GET', '/api/v1/endpoints', () => ENDPOINTS);

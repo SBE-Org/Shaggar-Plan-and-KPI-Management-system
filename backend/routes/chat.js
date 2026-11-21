@@ -1,6 +1,6 @@
 /* Internal messaging: one-to-one conversations between staff accounts
    (departments, the Mayor, the Mayor's Office, administrators).
-   Only the two participants can read a conversation. Citizens are excluded. */
+   Only the two participants can read a conversation. */
 const db = require('../db');
 const { route, fail, rateLimit } = require('../lib/http');
 const A = require('../lib/access');

@@ -14,18 +14,16 @@
     dept_head: 'Department Head',
     staff: 'Department Staff',
     kpi_officer: 'KPI Officer',
-    citizen: 'Citizen',
     auditor: 'Auditor / Reviewer',
   };
 
   const ROLE_DESC = {
     super_admin: 'Full system configuration and management',
     mayor: 'Executive overview and decision monitoring',
-    mayor_admin: 'Meetings, complaints, assignments, correspondence and final approval of performance data',
+    mayor_admin: 'Daily coordination for the Mayor and final approval of performance data',
     dept_head: 'Department activities, KPIs, verification and assigned tasks',
-    staff: 'Assigned tasks and service requests',
+    staff: 'Own individual targets, results and evaluation',
     kpi_officer: 'Performance submissions and reporting',
-    citizen: 'Appointment, complaint and request registration',
     auditor: 'Read-only access to authorised reports and audit records',
   };
 
@@ -41,9 +39,6 @@
     ['cap_manage', 'Create & update corrective action plans'],
     ['emp_eval', 'Evaluate employees'],
     ['reports', 'View & export reports'],
-    ['desk_intake', 'Register & route complaints / requests / appointments'],
-    ['desk_handle', 'Handle assigned requests'],
-    ['citizen', 'Citizen self-service portal'],
     ['audit', 'View audit trail'],
     ['users', 'Manage users, roles & permissions'],
     ['config', 'System configuration'],
@@ -53,13 +48,12 @@
   ];
 
   const DEFAULT_PERMS = {
-    super_admin: ['dash', 'all_depts', 'kpi_manage', 'submit', 'verify', 'approve', 'cap_manage', 'emp_eval', 'reports', 'desk_intake', 'desk_handle', 'audit', 'users', 'config', 'export', 'ai', 'chat'],
+    super_admin: ['dash', 'all_depts', 'kpi_manage', 'submit', 'verify', 'approve', 'cap_manage', 'emp_eval', 'reports', 'audit', 'users', 'config', 'export', 'ai', 'chat'],
     mayor: ['dash', 'all_depts', 'approve', 'target_approve', 'reports', 'audit', 'export', 'ai', 'chat'],
-    mayor_admin: ['dash', 'all_depts', 'approve', 'target_approve', 'reports', 'desk_intake', 'export', 'ai', 'chat'],
-    dept_head: ['dash', 'verify', 'target_propose', 'cap_manage', 'emp_eval', 'reports', 'desk_handle', 'export', 'ai', 'chat'],
-    staff: ['desk_handle', 'chat'],
+    mayor_admin: ['dash', 'all_depts', 'approve', 'target_approve', 'reports', 'export', 'ai', 'chat'],
+    dept_head: ['dash', 'verify', 'target_propose', 'cap_manage', 'emp_eval', 'reports', 'export', 'ai', 'chat'],
+    staff: ['chat'],
     kpi_officer: ['dash', 'submit', 'target_propose', 'reports', 'export', 'ai', 'chat'],
-    citizen: ['citizen'],
     auditor: ['dash', 'all_depts', 'reports', 'audit', 'export', 'ai', 'chat'],
   };
 
@@ -73,9 +67,6 @@
     ['target_proposed', 'Targets proposed, awaiting approval'],
     ['target_decided', 'Proposed targets approved or returned'],
     ['employee_report', 'Employee result reported or verified'],
-    ['request_new', 'New citizen request'],
-    ['request_assigned', 'Request assigned or routed'],
-    ['request_status', 'Request status changed'],
     ['escalation', 'Escalation'],
     ['otp', 'Sign-in verification code'],
     ['general', 'General'],
@@ -84,12 +75,9 @@
   const SCOPES = [
     ['perf:read', 'Read KPIs, scorecards and alerts'],
     ['perf:submit', 'Submit performance data'],
-    ['desk:read', 'Read service requests'],
-    ['desk:write', 'Create service requests'],
     ['audit:read', 'Read the audit trail'],
   ];
 
-  const REQUEST_STATUSES = ['New', 'Assigned', 'In progress', 'Resolved', 'Closed'];
   const RATINGS = ['Outstanding', 'Very good', 'Good', 'Needs improvement', 'Unsatisfactory'];
 
   const sum = a => a.reduce((x, y) => x + y, 0);
@@ -123,5 +111,5 @@
   }
   const AUDIT_CATEGORIES = ['Authentication', 'Create', 'Update', 'Approval', 'Assignment', 'Status change', 'Configuration', 'Data management', 'API', 'AI assistant'];
 
-  return { MONTHS, ROLES, ROLE_DESC, PERMS, DEFAULT_PERMS, EVENTS, SCOPES, REQUEST_STATUSES, RATINGS, AUDIT_CATEGORIES, sum, avg, clamp, decimals, pct, fmt, roundU, auditCategory };
+  return { MONTHS, ROLES, ROLE_DESC, PERMS, DEFAULT_PERMS, EVENTS, SCOPES, RATINGS, AUDIT_CATEGORIES, sum, avg, clamp, decimals, pct, fmt, roundU, auditCategory };
 });
